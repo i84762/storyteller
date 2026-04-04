@@ -1,0 +1,52 @@
+name: storyteller
+description: A PDF Voice Assistant with Tiered Subscription & AI Model Selector
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+
+  # TTS / STT
+  flutter_tts: ^4.0.2
+  speech_to_text: ^6.5.0
+
+  # PDF extraction
+  syncfusion_flutter_pdf: ^26.2.14
+
+  # File picking
+  file_picker: ^8.0.5
+
+  # AI / LLM
+  google_generative_ai: ^0.4.6
+  http: ^1.2.1
+
+  # IAP
+  in_app_purchase: ^3.2.0
+
+  # Storage
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.0.0
+
+  # UI helpers
+  lottie: ^3.1.2
+  flutter_spinkit: ^5.2.1
+  percent_indicator: ^4.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/animations/
+    - assets/images/
