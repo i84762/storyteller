@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/reader_provider.dart';
-import '../providers/model_provider.dart';
 import '../widgets/voice_input_button.dart';
 import '../widgets/usage_indicator.dart';
 
@@ -148,18 +147,18 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.menu_book, size: 80, color: Colors.white24),
-          const SizedBox(height: 20),
-          const Text(
+          Icon(Icons.menu_book, size: 80, color: Colors.white24),
+          SizedBox(height: 20),
+          Text(
             'No PDF loaded',
             style: TextStyle(color: Colors.white54, fontSize: 18),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Tap the button below to open a PDF',
             style: TextStyle(color: Colors.white30, fontSize: 14),
           ),

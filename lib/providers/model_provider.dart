@@ -52,8 +52,8 @@ class ModelProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // First: classify intent
-      final intent = await modelManager.classifyIntent(spokenInput);
+      // First: classify intent (result used for future navigation handling)
+      await modelManager.classifyIntent(spokenInput);
 
       // Then: generate response with full context
       final response = await modelManager.respondToUser(

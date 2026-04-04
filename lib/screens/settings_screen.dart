@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../models/ai_source.dart';
 import '../models/subscription_tier.dart';
 import '../providers/model_provider.dart';
-import '../providers/subscription_provider.dart';
 import '../widgets/model_selector_card.dart';
 
 class SettingsScreen extends StatefulWidget {

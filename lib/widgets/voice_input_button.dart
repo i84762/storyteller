@@ -73,15 +73,14 @@ class VoiceInputButton extends StatelessWidget {
     } else {
       // Handle errors
       final error = modelProvider.error;
+      if (!context.mounted) return;
       if (error == 'free_limit_reached') {
         _showSubscriptionPopup(context);
       } else if (error == 'missing_api_key') {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Please configure your API key in settings.')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Please configure your API key in settings.')),
+        );
       }
     }
   }

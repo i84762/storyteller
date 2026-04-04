@@ -6,8 +6,8 @@ class TtsService {
   final FlutterTts _tts = FlutterTts();
   TtsState state = TtsState.stopped;
   double _speechRate = 0.5;
-  double _pitch = 1.0;
-  String _language = 'en-US';
+  final double _pitch = 1.0;
+  final String _language = 'en-US';
 
   Function()? onComplete;
   Function(String)? onError;

@@ -31,7 +31,7 @@ class SubscriptionScreen extends StatelessWidget {
                   isOwned: sub.isPremium,
                 ),
                 const SizedBox(height: 12),
-                _PlanCard(
+                const _PlanCard(
                   icon: Icons.token,
                   iconColor: Colors.teal,
                   title: '500 Token Pack',
@@ -41,7 +41,7 @@ class SubscriptionScreen extends StatelessWidget {
                   isOwned: false,
                 ),
                 const SizedBox(height: 12),
-                _PlanCard(
+                const _PlanCard(
                   icon: Icons.token,
                   iconColor: Colors.green,
                   title: '2,000 Token Pack',
