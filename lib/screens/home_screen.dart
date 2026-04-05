@@ -209,8 +209,23 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _openPdf(BuildContext context, ReaderProvider reader) async {
     final success = await reader.pickAndLoadPdf();
-    if (success && context.mounted) {
+    if (!context.mounted) return;
+    if (success) {
       Navigator.pushNamed(context, '/reader');
+    } else if (reader.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reader.errorMessage!),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Dismiss',
+            textColor: Colors.white,
+            onPressed: reader.clearError,
+          ),
+        ),
+      );
+      reader.clearError();
     }
   }
 }

@@ -9,18 +9,23 @@ class PdfService {
   List<String> get pages => _pages;
   int get totalPages => _totalPages;
 
+  /// Loads from a file path — bytes are read inside the isolate so they
+  /// never occupy the main isolate's heap.
   Future<void> loadFromPath(String filePath) async {
-    final bytes = await File(filePath).readAsBytes();
-    _pages = await Isolate.run(() => _extractPages(bytes));
+    _pages = await Isolate.run(() {
+      final bytes = File(filePath).readAsBytesSync();
+      return _extractFromBytes(bytes);
+    });
     _totalPages = _pages.length;
   }
 
+  /// Loads from bytes already in memory (e.g. picked without a path).
   Future<void> loadFromBytes(List<int> bytes) async {
-    _pages = await Isolate.run(() => _extractPages(bytes));
+    _pages = await Isolate.run(() => _extractFromBytes(bytes));
     _totalPages = _pages.length;
   }
 
-  static List<String> _extractPages(List<int> bytes) {
+  static List<String> _extractFromBytes(List<int> bytes) {
     final document = PdfDocument(inputBytes: bytes);
     final count = document.pages.count;
     final extractor = PdfTextExtractor(document);

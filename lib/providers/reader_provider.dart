@@ -16,6 +16,7 @@ class ReaderProvider extends ChangeNotifier {
   String? _pdfPath;
   String? _lastUserInput;
   String? _lastAssistantResponse;
+  String? _errorMessage;
 
   ReaderState get state => _state;
   int get currentPage => _currentPage;
@@ -25,6 +26,11 @@ class ReaderProvider extends ChangeNotifier {
   String? get lastAssistantResponse => _lastAssistantResponse;
   String get currentPageText => _pdfService.getPage(_currentPage);
   bool get hasPdf => _pdfPath != null && _pdfService.totalPages > 0;
+  String? get errorMessage => _errorMessage;
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
 
   Future<void> init() async {
     await _ttsService.init();
@@ -57,6 +63,7 @@ class ReaderProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _state = ReaderState.idle;
+      _errorMessage = 'Failed to load PDF. The file may be too large or corrupted.';
       notifyListeners();
       return false;
     }
