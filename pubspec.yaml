@@ -16,7 +16,7 @@ dependencies:
 
   # TTS / STT
   flutter_tts: ^4.0.2
-  speech_to_text: ^6.5.0
+  speech_to_text: ^7.0.0
 
   # PDF extraction
   syncfusion_flutter_pdf: ^26.2.14
@@ -34,6 +34,7 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.3
   flutter_secure_storage: ^9.0.0
+  win32: ">=5.6.0"
 
   # UI helpers
   lottie: ^3.1.2

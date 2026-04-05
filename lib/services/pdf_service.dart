@@ -1,37 +1,35 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfService {
   List<String> _pages = [];
-  String _fullText = '';
   int _totalPages = 0;
 
   List<String> get pages => _pages;
-  String get fullText => _fullText;
   int get totalPages => _totalPages;
 
   Future<void> loadFromPath(String filePath) async {
     final bytes = await File(filePath).readAsBytes();
-    await _processBytes(bytes);
+    _pages = await Isolate.run(() => _extractPages(bytes));
+    _totalPages = _pages.length;
   }
 
   Future<void> loadFromBytes(List<int> bytes) async {
-    await _processBytes(bytes);
+    _pages = await Isolate.run(() => _extractPages(bytes));
+    _totalPages = _pages.length;
   }
 
-  Future<void> _processBytes(List<int> bytes) async {
+  static List<String> _extractPages(List<int> bytes) {
     final document = PdfDocument(inputBytes: bytes);
-    _totalPages = document.pages.count;
-    _pages = [];
-
+    final count = document.pages.count;
     final extractor = PdfTextExtractor(document);
-    for (int i = 0; i < _totalPages; i++) {
-      final text = extractor.extractText(startPageIndex: i, endPageIndex: i);
-      _pages.add(text.trim());
+    final pages = <String>[];
+    for (int i = 0; i < count; i++) {
+      pages.add(extractor.extractText(startPageIndex: i, endPageIndex: i).trim());
     }
-
-    _fullText = _pages.join('\n\n');
     document.dispose();
+    return pages;
   }
 
   String getPage(int index) {
@@ -47,7 +45,7 @@ class PdfService {
 
   void dispose() {
     _pages = [];
-    _fullText = '';
     _totalPages = 0;
   }
 }
+

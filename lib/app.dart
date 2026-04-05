@@ -35,7 +35,7 @@ class StoryTellerApp extends StatelessWidget {
             elevation: 0,
           ),
           scaffoldBackgroundColor: const Color(0xFF1A1A2E),
-          cardTheme: CardTheme(
+          cardTheme: CardThemeData(
             color: const Color(0xFF16213E),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
