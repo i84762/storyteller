@@ -8,7 +8,7 @@ import '../utils/constants.dart';
 import '../utils/intent_parser.dart';
 import 'gemini_service.dart';
 import 'openai_service.dart';
-import 'on_device_service.dart';
+import 'on_device_service.dart' show OnDeviceService, OnDeviceUnavailableException;
 import 'usage_tracker.dart';
 
 /// ModelManager is the central routing class.
@@ -56,6 +56,9 @@ class ModelManager {
     await _secureStorage.write(key: 'byok_api_key', value: key);
     await _secureStorage.write(key: 'byok_provider', value: provider.name);
   }
+
+  /// Checks whether on-device AI (Gemini Nano via AICore) is available.
+  Future<bool> checkOnDeviceAvailability() => _onDeviceService.isAvailable();
 
   /// Determines intent from user's spoken input
   Future<IntentResult> classifyIntent(String spokenInput) async {
@@ -174,7 +177,11 @@ class ModelManager {
   }
 
   Future<String> _generateOnDevice(String system, String user) async {
-    return _onDeviceService.generateContent(system, user);
+    try {
+      return await _onDeviceService.generateContent(system, user);
+    } on OnDeviceUnavailableException {
+      rethrow; // caller will surface this to the user
+    }
   }
 }
 

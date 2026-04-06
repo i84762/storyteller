@@ -13,48 +13,54 @@ class HomeScreen extends StatelessWidget {
     final reader = context.watch<ReaderProvider>();
     final model = context.watch<ModelProvider>();
     final books = reader.recentBooks;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final gradientColors = isDark
+        ? const [Color(0xFF100D16), Color(0xFF1A1528), Color(0xFF221D33)]
+        : const [Color(0xFFF8F0E3), Color(0xFFF0DCC0), Color(0xFFEDD8B8)];
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
+            colors: gradientColors,
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'StoryTeller',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: cs.onSurface,
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
                           model.currentTier.displayName,
-                          style: const TextStyle(
-                              color: Colors.white54, fontSize: 13),
+                          style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.5),
+                              fontSize: 13),
                         ),
                       ],
                     ),
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.tune, color: Colors.white70),
+                          icon: Icon(Icons.tune,
+                              color: cs.onSurface.withValues(alpha: 0.7)),
                           onPressed: () =>
                               Navigator.pushNamed(context, '/settings'),
                         ),
@@ -70,7 +76,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // Body
               Expanded(
                 child: books.isEmpty
                     ? _HeroSection(reader: reader)
@@ -82,12 +87,12 @@ class HomeScreen extends StatelessWidget {
                       ),
               ),
 
-              // Open PDF button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
                     minimumSize: const Size.fromHeight(56),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
@@ -106,16 +111,16 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white30),
+                      foregroundColor: cs.onSurface.withValues(alpha: 0.7),
+                      side: BorderSide(
+                          color: cs.onSurface.withValues(alpha: 0.25)),
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                     ),
-                    icon: const Icon(Icons.menu_book, color: Colors.white70),
-                    label: const Text('Continue Reading',
-                        style: TextStyle(color: Colors.white70)),
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/reader'),
+                    icon: const Icon(Icons.menu_book),
+                    label: const Text('Continue Reading'),
+                    onPressed: () => Navigator.pushNamed(context, '/reader'),
                   ),
                 ),
               ],
@@ -169,7 +174,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ── Hero section (no books yet) ───────────────────────────────────────────────
+// ── Hero section ──────────────────────────────────────────────────────────────
 
 class _HeroSection extends StatelessWidget {
   final ReaderProvider reader;
@@ -177,6 +182,7 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -186,40 +192,34 @@ class _HeroSection extends StatelessWidget {
             height: 160,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  Colors.deepPurple.shade400,
-                  Colors.deepPurple.shade900,
-                ],
-              ),
+              color: cs.primaryContainer,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.deepPurple.withAlpha(128),
+                  color: cs.primary.withValues(alpha: 0.2),
                   blurRadius: 40,
                   spreadRadius: 10,
                 ),
               ],
             ),
-            child: const Icon(Icons.auto_stories,
-                color: Colors.white, size: 72),
+            child: Icon(Icons.auto_stories, color: cs.primary, size: 72),
           ),
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'Your AI Reading\nCompanion',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white,
+              color: cs.onSurface,
               fontSize: 24,
               height: 1.4,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Load a PDF and let AI read it to you.\nAsk questions. Navigate by voice.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white54,
+              color: cs.onSurface.withValues(alpha: 0.5),
               fontSize: 14,
               height: 1.5,
             ),
@@ -247,6 +247,7 @@ class _RecentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -254,12 +255,13 @@ class _RecentSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
           child: Row(
             children: [
-              const Icon(Icons.history, color: Colors.white54, size: 18),
+              Icon(Icons.history,
+                  color: cs.onSurface.withValues(alpha: 0.5), size: 18),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Recent',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: cs.onSurface.withValues(alpha: 0.7),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
@@ -268,13 +270,9 @@ class _RecentSection extends StatelessWidget {
               const Spacer(),
               if (hasMore)
                 TextButton(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/library'),
-                  child: const Text(
-                    'See all →',
-                    style: TextStyle(
-                        color: Colors.deepPurpleAccent, fontSize: 13),
-                  ),
+                  onPressed: () => Navigator.pushNamed(context, '/library'),
+                  child: Text('See all →',
+                      style: TextStyle(color: cs.primary, fontSize: 13)),
                 ),
             ],
           ),
@@ -309,6 +307,7 @@ class BookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final progress = record.progress;
     final timeAgo = _timeAgo(record.lastOpened);
 
@@ -330,16 +329,16 @@ class BookCard extends StatelessWidget {
                     child: CircularProgressIndicator(
                       value: progress,
                       strokeWidth: 3,
-                      backgroundColor: Colors.white10,
+                      backgroundColor: cs.outline.withValues(alpha: 0.3),
                       valueColor: AlwaysStoppedAnimation(
-                          record.isPinned
-                              ? Colors.amber
-                              : Colors.deepPurple.shade300),
+                          record.isPinned ? Colors.amber : cs.primary),
                     ),
                   ),
                   Icon(
                     record.isPinned ? Icons.push_pin : Icons.menu_book,
-                    color: record.isPinned ? Colors.amber : Colors.white70,
+                    color: record.isPinned
+                        ? Colors.amber
+                        : cs.onSurface.withValues(alpha: 0.6),
                     size: 22,
                   ),
                 ],
@@ -353,16 +352,17 @@ class BookCard extends StatelessWidget {
                       record.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: cs.onSurface,
                           fontWeight: FontWeight.w600,
                           fontSize: 14),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Page ${record.lastPage + 1} of ${record.totalPages}  ·  $timeAgo',
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 11),
+                      style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.5),
+                          fontSize: 11),
                     ),
                     const SizedBox(height: 5),
                     ClipRRect(
@@ -370,9 +370,8 @@ class BookCard extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: progress,
                         minHeight: 3,
-                        backgroundColor: Colors.white10,
-                        valueColor: AlwaysStoppedAnimation(
-                            Colors.deepPurple.shade300),
+                        backgroundColor: cs.outline.withValues(alpha: 0.3),
+                        valueColor: AlwaysStoppedAnimation(cs.primary),
                       ),
                     ),
                   ],
@@ -387,8 +386,9 @@ class BookCard extends StatelessWidget {
                           ? Icons.push_pin
                           : Icons.push_pin_outlined,
                       size: 18,
-                      color:
-                          record.isPinned ? Colors.amber : Colors.white38,
+                      color: record.isPinned
+                          ? Colors.amber
+                          : cs.onSurface.withValues(alpha: 0.35),
                     ),
                     tooltip: record.isPinned ? 'Unpin' : 'Pin',
                     onPressed: () => reader.togglePin(record.path),
@@ -397,8 +397,9 @@ class BookCard extends StatelessWidget {
                         const BoxConstraints(minWidth: 32, minHeight: 32),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: Colors.white30),
+                    icon: Icon(Icons.close,
+                        size: 18,
+                        color: cs.onSurface.withValues(alpha: 0.28)),
                     tooltip: 'Remove from history',
                     onPressed: () => _confirmRemove(context),
                     padding: EdgeInsets.zero,
@@ -419,8 +420,7 @@ class BookCard extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Remove from history?'),
-        content:
-            Text('"${record.title}" will be removed from recent books.'),
+        content: Text('"${record.title}" will be removed from recent books.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
@@ -430,8 +430,9 @@ class BookCard extends StatelessWidget {
               reader.removeBook(record.path);
               Navigator.pop(context);
             },
-            child: const Text('Remove',
-                style: TextStyle(color: Colors.red)),
+            child: Text('Remove',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),

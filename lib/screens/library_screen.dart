@@ -31,7 +31,7 @@ class LibraryScreen extends StatelessWidget {
               children: [
                 // Stats row
                 Container(
-                  color: const Color(0xFF16213E),
+                  color: Theme.of(context).colorScheme.surface,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 10),
                   child: Row(
@@ -100,7 +100,7 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? Colors.white54;
+    final c = color ?? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -122,13 +122,13 @@ class _EmptyLibrary extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.library_books_outlined,
-              size: 72, color: Colors.white24),
+              size: 72, color: Colors.brown),
           const SizedBox(height: 20),
           const Text('No books yet',
-              style: TextStyle(color: Colors.white54, fontSize: 18)),
+              style: TextStyle(fontSize: 18)),
           const SizedBox(height: 8),
           const Text('Open a PDF to start listening',
-              style: TextStyle(color: Colors.white30, fontSize: 14)),
+              style: TextStyle(fontSize: 14)),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => Navigator.pop(context),

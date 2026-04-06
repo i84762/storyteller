@@ -469,6 +469,16 @@ class ReaderProvider extends ChangeNotifier {
   Future<void> speedUp() => _applySpeedChange(_audioHandler.speedUp);
   Future<void> slowDown() => _applySpeedChange(_audioHandler.slowDown);
 
+  /// Sets speech rate directly (e.g. from a slider in Settings).
+  Future<void> setSpeechRateDirect(double rate) async {
+    await _audioHandler.setSpeechRate(rate);
+    if (_state == ReaderState.reading) {
+      await _audioHandler.stop();
+      await startReading();
+    }
+    notifyListeners();
+  }
+
   Future<void> _applySpeedChange(Future<void> Function() change) async {
     await change();
     if (_state == ReaderState.reading) {

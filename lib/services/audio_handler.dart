@@ -12,7 +12,9 @@ const _kPrefLanguage = 'tts_language';
 /// notification shade, lock screen, and Bluetooth controls.
 class TtsAudioHandler extends BaseAudioHandler {
   final FlutterTts _tts = FlutterTts();
-  double _speechRate = 1.0;
+  // 0.5 is the perceptually "normal" speed on Android TTS engines.
+  // The UI displays this as 1×; see _SpeedBar in reader_screen.dart.
+  double _speechRate = 0.5;
   String _selectedLanguage = 'en-US';
   Map<String, String>? _selectedVoice;
 
@@ -150,9 +152,9 @@ class TtsAudioHandler extends BaseAudioHandler {
 
   // ── Speech-rate helpers ─────────────────────────────────────────────────
 
-  static const double minRate = 0.25;
-  static const double maxRate = 2.0;
-  static const double rateStep = 0.25;
+  static const double minRate = 0.25;  // 0.5× display
+  static const double maxRate = 1.5;   // 3.0× display
+  static const double rateStep = 0.1;  // 0.2× display step
 
   Future<void> setSpeechRate(double rate) async {
     _speechRate = rate.clamp(minRate, maxRate);

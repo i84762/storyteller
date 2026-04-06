@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../services/on_device_service.dart' show OnDeviceUnavailableException;
 import '../models/ai_source.dart';
 import '../models/listening_mode.dart';
 import '../models/subscription_tier.dart';
@@ -57,6 +58,10 @@ class ModelProvider extends ChangeNotifier {
         focusTopic: focusTopic,
         targetLanguage: targetLanguage,
       );
+    } on OnDeviceUnavailableException catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return null;
     } catch (_) {
       return null; // caller falls back to raw text
     }

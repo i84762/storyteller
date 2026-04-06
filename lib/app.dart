@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 import 'providers/model_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/reader_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'screens/library_screen.dart';
 import 'services/audio_handler.dart';
+import 'themes/app_theme.dart';
 
 class StoryTellerApp extends StatefulWidget {
   const StoryTellerApp({super.key});
@@ -24,6 +26,7 @@ class _StoryTellerAppState extends State<StoryTellerApp>
   ModelProvider? _modelProvider;
   SubscriptionProvider? _subProvider;
   ReaderProvider? _readerProvider;
+  final ThemeProvider _themeProvider = ThemeProvider();
   // true = audio_service failed; app runs with TTS only (no background service).
   bool _degradedMode = false;
   bool _initializing = false;
@@ -32,6 +35,7 @@ class _StoryTellerAppState extends State<StoryTellerApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _themeProvider.init();
     // First attempt after the first frame is drawn.
     WidgetsBinding.instance.addPostFrameCallback((_) => _tryInit());
   }
@@ -62,7 +66,6 @@ class _StoryTellerAppState extends State<StoryTellerApp>
     androidNotificationIcon: 'mipmap/ic_launcher',
     androidShowNotificationBadge: true,
     androidStopForegroundOnPause: true,
-    notificationColor: Color(0xFF16213E),
   );
 
   /// Tries to initialise audio_service with up to [maxAttempts] retries.
@@ -120,39 +123,47 @@ class _StoryTellerAppState extends State<StoryTellerApp>
   Widget build(BuildContext context) {
     // Show a branded splash while AudioService is initialising.
     if (_readerProvider == null) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          backgroundColor: const Color(0xFF1A1A2E),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      Colors.deepPurple.shade400,
-                      Colors.deepPurple.shade900,
-                    ]),
-                  ),
-                  child: const Icon(Icons.auto_stories,
-                      color: Colors.white, size: 48),
-                ),
-                const SizedBox(height: 32),
-                const Text(
-                  'StoryTeller',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const CircularProgressIndicator(color: Colors.deepPurple),
-              ],
+      return ListenableBuilder(
+        listenable: _themeProvider,
+        builder: (context, _) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: _themeProvider.themeData,
+          home: Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Builder(builder: (ctx) {
+                    final c = Theme.of(ctx).colorScheme;
+                    return Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: c.primaryContainer,
+                      ),
+                      child: Icon(Icons.auto_stories, color: c.primary, size: 48),
+                    );
+                  }),
+                  const SizedBox(height: 32),
+                  Builder(builder: (ctx) {
+                    final c = Theme.of(ctx).colorScheme;
+                    return Text(
+                      'StoryTeller',
+                      style: TextStyle(
+                        color: c.onSurface,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 24),
+                  Builder(builder: (ctx) {
+                    final c = Theme.of(ctx).colorScheme;
+                    return CircularProgressIndicator(color: c.primary);
+                  }),
+                ],
+              ),
             ),
           ),
         ),
@@ -162,6 +173,7 @@ class _StoryTellerAppState extends State<StoryTellerApp>
     return MultiProvider(
       providers: [
         // Use .value() so the same instances survive widget rebuilds.
+        ChangeNotifierProvider<ThemeProvider>.value(value: _themeProvider),
         ChangeNotifierProvider<ModelProvider>.value(value: _modelProvider!),
         ChangeNotifierProvider<SubscriptionProvider>.value(value: _subProvider!),
         ChangeNotifierProvider<ReaderProvider>.value(value: _readerProvider!),
@@ -174,66 +186,49 @@ class _StoryTellerAppState extends State<StoryTellerApp>
           },
         ),
       ],
-      child: MaterialApp(
-        title: 'StoryTeller',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF16213E),
-            foregroundColor: Colors.white,
-            elevation: 0,
-          ),
-          scaffoldBackgroundColor: const Color(0xFF1A1A2E),
-          cardTheme: CardThemeData(
-            color: const Color(0xFF16213E),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        initialRoute: '/',
-        routes: {
-          '/': (ctx) => const HomeScreen(),
-          '/reader': (ctx) => const ReaderScreen(),
-          '/settings': (ctx) => const SettingsScreen(),
-          '/subscription': (ctx) => const SubscriptionScreen(),
-          '/library': (ctx) => const LibraryScreen(),
-        },
-        // Show a one-time dismissible banner when running without background service.
-        builder: _degradedMode
-            ? (ctx, child) => Column(
-                  children: [
-                    SafeArea(
-                      bottom: false,
-                      left: false,
-                      right: false,
-                      child: MaterialBanner(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 6),
-                        content: const Text(
-                          'Background audio unavailable on this device.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        leading: const Icon(Icons.info_outline, size: 18),
-                        actions: [
-                          TextButton(
-                            onPressed: () =>
-                                setState(() => _degradedMode = false),
-                            child: const Text('OK'),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'StoryTeller',
+          debugShowCheckedModeBanner: false,
+          theme: themeProvider.themeData,
+          initialRoute: '/',
+          routes: {
+            '/': (ctx) => const HomeScreen(),
+            '/reader': (ctx) => const ReaderScreen(),
+            '/settings': (ctx) => const SettingsScreen(),
+            '/subscription': (ctx) => const SubscriptionScreen(),
+            '/library': (ctx) => const LibraryScreen(),
+          },
+          // Show a one-time dismissible banner when running without background service.
+          builder: _degradedMode
+              ? (ctx, child) => Column(
+                    children: [
+                      SafeArea(
+                        bottom: false,
+                        left: false,
+                        right: false,
+                        child: MaterialBanner(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          content: const Text(
+                            'Background audio unavailable on this device.',
+                            style: TextStyle(fontSize: 12),
                           ),
-                        ],
+                          leading: const Icon(Icons.info_outline, size: 18),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _degradedMode = false),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Expanded(child: child!),
-                  ],
-                )
-            : null,
+                      Expanded(child: child!),
+                    ],
+                  )
+              : null,
+        ),
       ),
     );
   }

@@ -82,10 +82,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16213E),
-        foregroundColor: Colors.white,
         title: Text(
           reader.pdfPath?.split(RegExp(r'[/\\]')).last ?? 'StoryTeller',
           overflow: TextOverflow.ellipsis,
@@ -105,84 +102,90 @@ class _ReaderScreenState extends State<ReaderScreen> {
         children: [
           // Page info bar
           if (reader.hasPdf)
-            Container(
-              color: const Color(0xFF16213E),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Page ${reader.currentPage + 1} of ${reader.totalPages}',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12),
-                  ),
-                  // Mode chip — tap to change
-                  GestureDetector(
-                    onTap: () => ListeningModePicker.show(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: reader.listeningMode.color
-                            .withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+            Builder(builder: (ctx) {
+              final cs = Theme.of(ctx).colorScheme;
+              return Container(
+                color: cs.surface,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Page ${reader.currentPage + 1} of ${reader.totalPages}',
+                      style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.6),
+                          fontSize: 12),
+                    ),
+                    // Mode chip — tap to change
+                    GestureDetector(
+                      onTap: () => ListeningModePicker.show(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
                           color: reader.listeningMode.color
-                              .withValues(alpha: 0.5),
+                              .withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: reader.listeningMode.color
+                                .withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(reader.listeningMode.icon,
+                                size: 12,
+                                color: reader.listeningMode.color),
+                            const SizedBox(width: 4),
+                            Text(
+                              reader.listeningMode.displayName,
+                              style: TextStyle(
+                                color: reader.listeningMode.color,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(reader.listeningMode.icon,
-                              size: 12,
-                              color: reader.listeningMode.color),
-                          const SizedBox(width: 4),
-                          Text(
-                            reader.listeningMode.displayName,
-                            style: TextStyle(
-                              color: reader.listeningMode.color,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
-                  _StateChip(reader.state),
-                ],
-              ),
-            ),
+                    _StateChip(reader.state),
+                  ],
+                ),
+              );
+            }),
 
           // AI-processing indicator
           if (reader.isTranslating)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              color: Colors.deepPurple.withValues(alpha: 0.25),
-              child: Row(
-                children: [
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.deepPurpleAccent,
+            Builder(builder: (ctx) {
+              final cs = Theme.of(ctx).colorScheme;
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: cs.primaryContainer.withValues(alpha: 0.5),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    reader.listeningMode == ListeningMode.wordToWord
-                        ? 'Translating…'
-                        : 'Processing with AI…',
-                    style: const TextStyle(
-                        color: Colors.deepPurpleAccent, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 10),
+                    Text(
+                      reader.listeningMode == ListeningMode.wordToWord
+                          ? 'Translating…'
+                          : 'Processing with AI…',
+                      style: TextStyle(color: cs.primary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            }),
 
           // PDF text display
           Expanded(
@@ -316,18 +319,19 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final text = widget.fullText;
     final spans = <InlineSpan>[];
     int lastEnd = 0;
 
-    const normalStyle = TextStyle(
-      color: Colors.white,
+    final normalStyle = TextStyle(
+      color: cs.onSurface,
       fontSize: 16,
       height: 1.8,
       fontFamily: 'Georgia',
     );
-    const spaceStyle = TextStyle(
-      color: Colors.white,
+    final spaceStyle = TextStyle(
+      color: cs.onSurface,
       fontSize: 16,
       height: 1.8,
       fontFamily: 'Georgia',
@@ -348,9 +352,11 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
       spans.add(TextSpan(
         text: span.text,
         style: isHighlighted
-            ? const TextStyle(
-                color: Colors.black,
-                backgroundColor: Color(0xFFFFD54F), // amber highlight
+            ? TextStyle(
+                color: cs.brightness == Brightness.dark
+                    ? Colors.black
+                    : Colors.brown.shade900,
+                backgroundColor: const Color(0xFFFFD54F), // amber highlight
                 fontSize: 16,
                 height: 1.8,
                 fontFamily: 'Georgia',
@@ -420,6 +426,7 @@ class _PdfTextView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: AnimatedOpacity(
@@ -427,8 +434,8 @@ class _PdfTextView extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         child: Text(
           text.isEmpty ? 'This page has no text content.' : text,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: cs.onSurface,
             fontSize: 16,
             height: 1.7,
             fontFamily: 'Georgia',
@@ -444,20 +451,24 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final cs = Theme.of(context).colorScheme;
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.menu_book, size: 80, color: Colors.white24),
-          SizedBox(height: 20),
+          Icon(Icons.menu_book, size: 80,
+              color: cs.onSurface.withValues(alpha: 0.2)),
+          const SizedBox(height: 20),
           Text(
             'No PDF loaded',
-            style: TextStyle(color: Colors.white54, fontSize: 18),
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.5), fontSize: 18),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'Tap the button below to open a PDF',
-            style: TextStyle(color: Colors.white30, fontSize: 14),
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.35), fontSize: 14),
           ),
         ],
       ),
@@ -473,11 +484,12 @@ class _ConversationBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F3460),
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -486,12 +498,14 @@ class _ConversationBubble extends StatelessWidget {
           if (userText != null)
             Row(
               children: [
-                const Icon(Icons.person, size: 14, color: Colors.white54),
+                Icon(Icons.person, size: 14,
+                    color: cs.onSurface.withValues(alpha: 0.5)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(userText!,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 13)),
+                      style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.7),
+                          fontSize: 13)),
                 ),
               ],
             ),
@@ -506,8 +520,8 @@ class _ConversationBubble extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(assistantText!,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 13)),
+                      style: TextStyle(
+                          color: cs.onSurface, fontSize: 13)),
                 ),
               ],
             ),
@@ -523,41 +537,36 @@ class _SpeedBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final rate = reader.speechRate;
     final atMin = rate <= 0.25;
-    final atMax = rate >= 3.0;
+    final atMax = rate >= 1.5;
+    final displayRate = rate / 0.5;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.speed, size: 16, color: Colors.white38),
+          Icon(Icons.speed, size: 16,
+              color: cs.onSurface.withValues(alpha: 0.35)),
           const SizedBox(width: 8),
-          _SpeedButton(
-            icon: Icons.remove,
-            enabled: !atMin,
-            onTap: reader.slowDown,
-          ),
+          _SpeedButton(icon: Icons.remove, enabled: !atMin, onTap: reader.slowDown),
           const SizedBox(width: 4),
           SizedBox(
             width: 52,
             child: Text(
-              '${rate.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}×',
+              '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: cs.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           const SizedBox(width: 4),
-          _SpeedButton(
-            icon: Icons.add,
-            enabled: !atMax,
-            onTap: reader.speedUp,
-          ),
+          _SpeedButton(icon: Icons.add, enabled: !atMax, onTap: reader.speedUp),
         ],
       ),
     );
@@ -572,6 +581,7 @@ class _SpeedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
@@ -580,25 +590,27 @@ class _SpeedButton extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: enabled
-              ? Colors.white.withValues(alpha: 0.12)
+              ? cs.onSurface.withValues(alpha: 0.1)
               : Colors.transparent,
         ),
         child: Icon(
           icon,
           size: 18,
-          color: enabled ? Colors.white : Colors.white24,
+          color: enabled
+              ? cs.onSurface
+              : cs.onSurface.withValues(alpha: 0.2),
         ),
       ),
     );
   }
 }
-
 class _ControlBar extends StatelessWidget {
   final ReaderProvider reader;
   const _ControlBar({required this.reader});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
@@ -606,7 +618,8 @@ class _ControlBar extends StatelessWidget {
         children: [
           IconButton(
             tooltip: 'Previous page',
-            icon: const Icon(Icons.skip_previous, color: Colors.white70),
+            icon: Icon(Icons.skip_previous,
+                color: cs.onSurface.withValues(alpha: 0.6)),
             onPressed: reader.hasPdf ? reader.previousPage : null,
           ),
 
@@ -618,13 +631,13 @@ class _ControlBar extends StatelessWidget {
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.deepPurple.shade600,
+                color: cs.primary,
               ),
               child: Icon(
                 reader.state == ReaderState.reading
                     ? Icons.pause
                     : Icons.play_arrow,
-                color: Colors.white,
+                color: cs.onPrimary,
                 size: 30,
               ),
             ),
@@ -635,7 +648,8 @@ class _ControlBar extends StatelessWidget {
 
           IconButton(
             tooltip: 'Next page',
-            icon: const Icon(Icons.skip_next, color: Colors.white70),
+            icon: Icon(Icons.skip_next,
+                color: cs.onSurface.withValues(alpha: 0.6)),
             onPressed: reader.hasPdf ? reader.nextPage : null,
           ),
         ],
