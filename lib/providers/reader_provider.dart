@@ -364,9 +364,9 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page is ready — start prefetching ahead in the background.
     _schedulePrefetch(_currentPage + 1);
+    // Fire-and-forget image generation — StoryLoader shows while it loads.
     if (_pictorialEnabled) {
-      await _triggerImageGeneration(_currentPage);
-      await _waitForImage(_currentPage);
+      _triggerImageGeneration(_currentPage);
     }
     await _audioHandler.speakText(
       text,
@@ -375,7 +375,7 @@ class ReaderProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> pause() async {
+  Future<void> pause()async {
     await _audioHandler.pause();
     _state = ReaderState.paused;
     notifyListeners();
@@ -499,9 +499,9 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page ready — prefetch ahead.
     _schedulePrefetch(index + 1);
+    // Fire-and-forget image generation — StoryLoader shows while it loads.
     if (_pictorialEnabled) {
-      await _triggerImageGeneration(index);
-      await _waitForImage(index);
+      _triggerImageGeneration(index);
     }
     await _audioHandler.speakText(
       text,
@@ -696,15 +696,6 @@ class ReaderProvider extends ChangeNotifier {
         _prefetchingPage = null;
         _schedulePrefetch(page + 1);
       }
-    }
-  }
-
-  /// Waits up to [maxWait] for the image to be generated, then continues.
-  Future<void> _waitForImage(int page, {Duration maxWait = const Duration(seconds: 30)}) async {
-    final deadline = DateTime.now().add(maxWait);
-    while (_isGeneratingImage && page == _currentPage) {
-      if (DateTime.now().isAfter(deadline)) break;
-      await Future.delayed(const Duration(milliseconds: 300));
     }
   }
 
