@@ -173,11 +173,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
             visualDensity: VisualDensity.compact,
           ),
           if (reader.hasPdf && !reader.isProcessingOffline)
-            IconButton(
-              icon: const Icon(Icons.download_for_offline_outlined, size: 20),
-              tooltip: 'Process for Offline',
-              onPressed: () => _showOfflineDialog(context, reader),
-              visualDensity: VisualDensity.compact,
+            GestureDetector(
+              onTap: () => _showOfflineDialog(context, reader),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF7C3AED), Color(0xFFB45FEC)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.download_rounded, size: 13, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'Offline',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
@@ -622,79 +652,135 @@ class _PictorialView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // ── Background image / shimmer ─────────────────────────────────
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 600),
-          child: image != null
-              ? Image.memory(
-                  image!,
-                  key: ValueKey(image.hashCode),
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                )
-              : Center(child: StoryLoader(message: 'Illustrating your story…')),
-        ),
-
-        // ── Bottom gradient overlay ────────────────────────────────────
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black87],
-              ),
+    final cs = Theme.of(context).colorScheme;
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Background: image or themed loader ────────────────────────
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 800),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: child,
             ),
-            padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
-            child: showSubtitles && wordSpans.isNotEmpty && currentWordIndex >= 0
-                ? _CurrentWordDisplay(
-                    wordSpans: wordSpans,
-                    currentWordIndex: currentWordIndex,
-                    onWordTap: onWordTap,
+            child: image != null
+                ? Image.memory(
+                    image!,
+                    key: ValueKey(image.hashCode),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    gaplessPlayback: true,
                   )
-                : const SizedBox.shrink(),
-          ),
-        ),
-
-        // ── Generating badge ───────────────────────────────────────────
-        if (isGenerating)
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: Colors.white,
+                : Container(
+                    key: const ValueKey('loader'),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          cs.primaryContainer.withValues(alpha: 0.6),
+                          cs.secondaryContainer.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: StoryLoader(
+                        message: 'Illustrating your story…',
+                        size: 100,
+                      ),
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Text(
-                    'Illustrating…',
-                    style: TextStyle(color: Colors.white, fontSize: 10),
+          ),
+
+          // ── Top vignette ───────────────────────────────────────────────
+          if (image != null)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.45),
+                      Colors.transparent,
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
+
+          // ── Bottom gradient + subtitles ────────────────────────────────
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: image != null
+                      ? [Colors.transparent, Colors.black.withValues(alpha: 0.85)]
+                      : [Colors.transparent, cs.surface.withValues(alpha: 0.7)],
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 48, 16, 20),
+              child: showSubtitles && wordSpans.isNotEmpty && currentWordIndex >= 0
+                  ? _CurrentWordDisplay(
+                      wordSpans: wordSpans,
+                      currentWordIndex: currentWordIndex,
+                      onWordTap: onWordTap,
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
-      ],
+
+          // ── Generating badge (only while loading next image) ──────────
+          if (isGenerating && image != null)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 9,
+                        height: 9,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: cs.primary.withValues(alpha: 0.9),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      const Text(
+                        '✦ Illustrating…',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1062,33 +1148,31 @@ class _BottomPlayer extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
             ),
 
-            // Controls row
+            // Controls row: speed− | prev | play/pause | next | speed+
             Padding(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Previous page
-                  IconButton(
-                    tooltip: 'Previous page',
-                    icon: Icon(Icons.skip_previous,
-                        color: cs.onSurface.withValues(alpha: 0.7)),
-                    iconSize: 26,
-                    onPressed: reader.hasPdf && reader.currentPage > 0
-                        ? reader.previousPage
-                        : null,
-                  ),
-
-                  // Slow down
-                  _SmallControlButton(
-                    icon: Icons.remove,
-                    label: 'Slow',
+                  // Slow down (−) — tertiary, compact
+                  _SpeedButton(
+                    icon: Icons.remove_rounded,
                     enabled: !atMin,
                     onTap: reader.slowDown,
                   ),
 
-                  // Play / Pause
+                  // Previous page — secondary, prominent
+                  _NavButton(
+                    icon: Icons.skip_previous_rounded,
+                    tooltip: 'Previous page',
+                    enabled: reader.hasPdf && reader.currentPage > 0,
+                    onTap: reader.previousPage,
+                    cs: cs,
+                  ),
+
+                  // Play / Pause — primary
                   GestureDetector(
                     onTap: reader.hasPdf
                         ? () {
@@ -1100,59 +1184,80 @@ class _BottomPlayer extends StatelessWidget {
                           }
                         : null,
                     child: Container(
-                      width: 58,
-                      height: 58,
+                      width: 62,
+                      height: 62,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        gradient: reader.hasPdf
+                            ? LinearGradient(
+                                colors: [
+                                  cs.primary,
+                                  cs.primary.withValues(alpha: 0.8),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
                         color: reader.hasPdf
-                            ? cs.primary
+                            ? null
                             : cs.onSurface.withValues(alpha: 0.12),
+                        boxShadow: reader.hasPdf
+                            ? [
+                                BoxShadow(
+                                  color: cs.primary.withValues(alpha: 0.4),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                )
+                              ]
+                            : null,
                       ),
                       child: Icon(
-                        isReading ? Icons.pause : Icons.play_arrow,
-                        color:
-                            reader.hasPdf ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.3),
-                        size: 28,
+                        isReading ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        color: reader.hasPdf
+                            ? cs.onPrimary
+                            : cs.onSurface.withValues(alpha: 0.3),
+                        size: 30,
                       ),
                     ),
                   ),
 
-                  // Speed up
-                  _SmallControlButton(
-                    icon: Icons.add,
-                    label: 'Fast',
+                  // Next page — secondary, prominent
+                  _NavButton(
+                    icon: Icons.skip_next_rounded,
+                    tooltip: 'Next page',
+                    enabled: reader.hasPdf &&
+                        reader.currentPage < reader.totalPages - 1,
+                    onTap: reader.nextPage,
+                    cs: cs,
+                  ),
+
+                  // Speed up (+) — tertiary, compact
+                  _SpeedButton(
+                    icon: Icons.add_rounded,
                     enabled: !atMax,
                     onTap: reader.speedUp,
                   ),
-
-                  // Next page
-                  IconButton(
-                    tooltip: 'Next page',
-                    icon: Icon(Icons.skip_next,
-                        color: cs.onSurface.withValues(alpha: 0.7)),
-                    iconSize: 26,
-                    onPressed:
-                        reader.hasPdf && reader.currentPage < reader.totalPages - 1
-                            ? reader.nextPage
-                            : null,
-                  ),
-
-                  // Mic
-                  const VoiceInputButton(),
                 ],
               ),
             ),
 
-            // Speed pill
+            // Bottom row: mic + speed label
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.45),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const VoiceInputButton(),
+                  const SizedBox(width: 16),
+                  Text(
+                    '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1162,14 +1267,59 @@ class _BottomPlayer extends StatelessWidget {
   }
 }
 
-class _SmallControlButton extends StatelessWidget {
+/// Large navigation button (prev/next page) — prominently sized.
+class _NavButton extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final String tooltip;
   final bool enabled;
   final VoidCallback onTap;
-  const _SmallControlButton({
+  final ColorScheme cs;
+
+  const _NavButton({
     required this.icon,
-    required this.label,
+    required this.tooltip,
+    required this.enabled,
+    required this.onTap,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled
+                ? cs.onSurface.withValues(alpha: 0.1)
+                : Colors.transparent,
+          ),
+          child: Icon(
+            icon,
+            size: 28,
+            color: enabled
+                ? cs.onSurface.withValues(alpha: 0.85)
+                : cs.onSurface.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small speed control button (+/−) — compact tertiary control.
+class _SpeedButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _SpeedButton({
+    required this.icon,
     required this.enabled,
     required this.onTap,
   });
@@ -1177,26 +1327,17 @@ class _SmallControlButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: label,
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: enabled
-                ? cs.onSurface.withValues(alpha: 0.08)
-                : Colors.transparent,
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: enabled
-                ? cs.onSurface
-                : cs.onSurface.withValues(alpha: 0.2),
-          ),
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: SizedBox(
+        width: 32,
+        height: 32,
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled
+              ? cs.onSurface.withValues(alpha: 0.55)
+              : cs.onSurface.withValues(alpha: 0.18),
         ),
       ),
     );
