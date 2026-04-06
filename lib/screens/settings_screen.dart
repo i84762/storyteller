@@ -68,7 +68,7 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader('AI Intelligence'),
           _NavTile(
             icon: Icons.auto_awesome_outlined,
-            title: 'AI Source',
+            title: 'AI Engine',
             subtitle: _aiSourceLabel(model.currentTier),
             trailing: _AiStatusDot(model: model),
             onTap: () => Navigator.push(
@@ -364,6 +364,8 @@ class _VoiceLanguagePageState extends State<_VoiceLanguagePage> {
   List<Map<String, String>> _voices = [];
   bool _loading = true;
   String _filter = 'All';
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
 
   static const _languages = [
     ('English', 'en-US'),
@@ -383,7 +385,14 @@ class _VoiceLanguagePageState extends State<_VoiceLanguagePage> {
   @override
   void initState() {
     super.initState();
+    _searchCtrl.addListener(() => setState(() => _query = _searchCtrl.text));
     _loadVoices();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadVoices() async {
@@ -393,13 +402,35 @@ class _VoiceLanguagePageState extends State<_VoiceLanguagePage> {
   }
 
   List<Map<String, String>> get _filteredVoices {
-    if (_filter == 'All') return _voices;
+    var list = _voices.toList();
+
+    // Type filter
     if (_filter == 'Offline') {
-      return _voices.where((v) =>
+      list = list.where((v) =>
           !(v['name'] ?? '').toLowerCase().contains('network')).toList();
+    } else if (_filter == 'Online HD') {
+      list = list.where((v) =>
+          (v['name'] ?? '').toLowerCase().contains('network')).toList();
     }
-    return _voices.where((v) =>
-        (v['name'] ?? '').toLowerCase().contains('network')).toList();
+
+    // Search filter — match against friendly name or raw name
+    if (_query.trim().isNotEmpty) {
+      final q = _query.trim().toLowerCase();
+      list = list.where((v) {
+        final friendly = SettingsScreen._parseFriendlyVoiceName(v['name'] ?? '');
+        return friendly.toLowerCase().contains(q) ||
+            (v['name'] ?? '').toLowerCase().contains(q);
+      }).toList();
+    }
+
+    // Sort alphabetically by friendly name
+    list.sort((a, b) {
+      final fa = SettingsScreen._parseFriendlyVoiceName(a['name'] ?? '');
+      final fb = SettingsScreen._parseFriendlyVoiceName(b['name'] ?? '');
+      return fa.toLowerCase().compareTo(fb.toLowerCase());
+    });
+
+    return list;
   }
 
   @override
@@ -450,12 +481,22 @@ class _VoiceLanguagePageState extends State<_VoiceLanguagePage> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('VOICE',
-                style: TextStyle(
-                    color: cs.primary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2)),
+            child: Row(
+              children: [
+                Text('VOICE',
+                    style: TextStyle(
+                        color: cs.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2)),
+                const SizedBox(width: 8),
+                if (!_loading)
+                  Text('(${_filteredVoices.length} found)',
+                      style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.4),
+                          fontSize: 11)),
+              ],
+            ),
           ),
 
           // Filter chips
@@ -468,6 +509,35 @@ class _VoiceLanguagePageState extends State<_VoiceLanguagePage> {
                 selected: _filter == f,
                 onSelected: (_) => setState(() => _filter = f),
               )).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Search input
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search voices…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -621,7 +691,7 @@ class _SpeedPage extends StatelessWidget {
   }
 }
 
-// ── AI Source page ────────────────────────────────────────────────────────────
+// ── AI Engine page ────────────────────────────────────────────────────────────
 
 class _AiSourcePage extends StatelessWidget {
   const _AiSourcePage();
@@ -630,50 +700,123 @@ class _AiSourcePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final model = context.watch<ModelProvider>();
     final tier = model.currentTier;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Source')),
+      appBar: AppBar(title: const Text('AI Engine')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
-          Text(
-            'Choose how AI processes your books. On-device keeps data private. Cloud gives the best quality.',
-            style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                fontSize: 14,
-                height: 1.5),
+          // Page intro
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 18,
+                    color: cs.primary.withValues(alpha: 0.8)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Choose how StoryTeller processes your books with AI. '
+                    'Each option has different trade-offs between speed, '
+                    'quality, and privacy.',
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                        fontSize: 13,
+                        height: 1.5),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
+
+          // On-device
           _SourceCard(
-            title: 'On-device AI',
-            subtitle: 'Gemini Nano — private, no internet needed',
+            title: 'On-Device AI',
+            headline: 'Gemini Nano — runs entirely on your phone',
+            description:
+                'Your text never leaves your device. Uses Google\'s Gemini Nano '
+                'model built into supported Android phones (Galaxy S24+ series, '
+                'Pixel 9+). Processing is thorough but slower — expect a few '
+                'seconds per page, especially for long texts.',
+            tags: const [
+              _Tag('🔒 Fully private', Colors.green),
+              _Tag('📵 Works offline', Colors.blue),
+              _Tag('⏳ Slower', Colors.orange),
+              _Tag('Free forever', Colors.teal),
+            ],
             icon: Icons.phone_android,
             selected: tier == SubscriptionTier.onDevice,
             onTap: () => model.switchTier(SubscriptionTier.onDevice),
             body: const _OnDevicePanel(),
           ),
           const SizedBox(height: 12),
+
+          // Cloud AI
           _SourceCard(
             title: 'Cloud AI',
-            subtitle: 'Google Gemini Flash — high quality, requires internet',
+            headline: 'Google Gemini Flash — highest quality',
+            description:
+                'Processes text through Google\'s servers for the best reading '
+                'experience. Translations are more natural, summaries are sharper, '
+                'and responses are near-instant regardless of book length. '
+                'Requires an internet connection and a subscription.',
+            tags: const [
+              _Tag('⚡ Very fast', Colors.blue),
+              _Tag('✨ Best quality', Colors.purple),
+              _Tag('🌐 Internet required', Colors.orange),
+              _Tag('Subscription', Colors.grey),
+            ],
             icon: Icons.cloud_outlined,
             selected: tier == SubscriptionTier.premium,
             onTap: () => model.switchTier(SubscriptionTier.premium),
             body: const _CloudPanel(),
           ),
           const SizedBox(height: 12),
+
+          // BYOK
           _SourceCard(
             title: 'Own API Key',
-            subtitle: 'Use your Gemini or OpenAI key — no subscription needed',
+            headline: 'Bring your Gemini or OpenAI key',
+            description:
+                'Full cloud AI quality with no monthly app subscription. '
+                'You pay your AI provider directly (usually much cheaper for '
+                'personal use). Requires an API key from Google AI Studio or '
+                'OpenAI — takes about 2 minutes to set up.',
+            tags: const [
+              _Tag('⚡ Fast', Colors.blue),
+              _Tag('✨ Full quality', Colors.purple),
+              _Tag('💳 Pay-as-you-go', Colors.teal),
+              _Tag('🌐 Internet required', Colors.orange),
+            ],
             icon: Icons.key_outlined,
             selected: tier == SubscriptionTier.byok,
             onTap: () => model.switchTier(SubscriptionTier.byok),
             body: const _ByokPanel(),
           ),
           const SizedBox(height: 12),
+
+          // Free
           _SourceCard(
             title: 'Free',
-            subtitle: 'Limited AI calls per day',
+            headline: 'Limited daily AI requests — good for trying it out',
+            description:
+                'A small number of cloud AI calls per day at no cost. '
+                'Great for exploring AI features before committing to a plan. '
+                'When the daily limit is reached, books are read in the original '
+                'language without AI processing.',
+            tags: const [
+              _Tag('🎁 No cost', Colors.green),
+              _Tag('⚡ Fast', Colors.blue),
+              _Tag('⚠️ Daily limit', Colors.orange),
+              _Tag('🌐 Internet required', Colors.grey),
+            ],
             icon: Icons.lock_open_outlined,
             selected: tier == SubscriptionTier.free,
             onTap: () => model.switchTier(SubscriptionTier.free),
@@ -684,9 +827,23 @@ class _AiSourcePage extends StatelessWidget {
   }
 }
 
+/// A small label shown inside the feature-tag row of each source card.
+class _Tag {
+  final String label;
+  final Color color;
+  const _Tag(this.label, this.color);
+}
+
 class _SourceCard extends StatelessWidget {
   final String title;
-  final String subtitle;
+
+  /// Bold one-liner shown directly under the title.
+  final String headline;
+
+  /// 2–3 sentence description shown when the card is selected.
+  final String description;
+
+  final List<_Tag> tags;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
@@ -694,7 +851,9 @@ class _SourceCard extends StatelessWidget {
 
   const _SourceCard({
     required this.title,
-    required this.subtitle,
+    required this.headline,
+    required this.description,
+    required this.tags,
     required this.icon,
     required this.selected,
     required this.onTap,
@@ -704,45 +863,131 @@ class _SourceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: selected ? cs.primary : cs.outline,
+          color: selected ? cs.primary : cs.outline.withValues(alpha: 0.5),
           width: selected ? 2 : 1,
         ),
-        color: cs.surface,
+        color: selected
+            ? cs.primary.withValues(alpha: 0.04)
+            : cs.surface,
       ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(icon,
-                color: selected
-                    ? cs.primary
-                    : cs.onSurface.withValues(alpha: 0.5)),
-            title: Text(title,
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: cs.onSurface)),
-            subtitle: Text(subtitle,
-                style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.55),
-                    fontSize: 12)),
-            trailing: selected
-                ? Icon(Icons.radio_button_checked, color: cs.primary)
-                : Icon(Icons.radio_button_unchecked,
-                    color: cs.onSurface.withValues(alpha: 0.3)),
-            onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header row: icon + title + radio
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected
+                          ? cs.primary.withValues(alpha: 0.12)
+                          : cs.onSurface.withValues(alpha: 0.06),
+                    ),
+                    child: Icon(icon,
+                        size: 20,
+                        color: selected
+                            ? cs.primary
+                            : cs.onSurface.withValues(alpha: 0.5)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: selected
+                                    ? cs.primary
+                                    : cs.onSurface)),
+                        const SizedBox(height: 1),
+                        Text(headline,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withValues(alpha: 0.55))),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: selected
+                        ? cs.primary
+                        : cs.onSurface.withValues(alpha: 0.3),
+                    size: 22,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Feature tags — always visible for quick scanning
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: tags.map((t) => _buildTag(context, t)).toList(),
+              ),
+
+              // Description — only when selected
+              if (selected) ...[
+                const SizedBox(height: 12),
+                Text(
+                  description,
+                  style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      height: 1.55),
+                ),
+              ],
+
+              // Expanded panel (API key fields, download button, etc.)
+              if (selected && body != null) ...[
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 14),
+                body!,
+              ],
+            ],
           ),
-          if (selected && body != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: body!,
-            ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTag(BuildContext context, _Tag tag) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: tag.color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: tag.color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        tag.label,
+        style: TextStyle(
+            fontSize: 11,
+            color: tag.color.withValues(alpha: 0.85),
+            fontWeight: FontWeight.w500),
       ),
     );
   }
 }
+
 
 class _OnDevicePanel extends StatefulWidget {
   const _OnDevicePanel();

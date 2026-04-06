@@ -82,85 +82,87 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: Text(
-          reader.pdfPath?.split(RegExp(r'[/\\]')).last ?? 'StoryTeller',
-          overflow: TextOverflow.ellipsis,
+        titleSpacing: 12,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              reader.pdfPath?.split(RegExp(r'[/\\]')).last
+                  .replaceAll('.pdf', '') ?? 'StoryTeller',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            if (reader.hasPdf)
+              Text(
+                'Page ${reader.currentPage + 1} of ${reader.totalPages}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.5),
+                ),
+              ),
+          ],
         ),
         actions: [
+          if (reader.hasPdf) ...[
+            // Mode chip in AppBar actions
+            GestureDetector(
+              onTap: () => ListeningModePicker.show(context),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: reader.listeningMode.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: reader.listeningMode.color.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(reader.listeningMode.icon,
+                        size: 12, color: reader.listeningMode.color),
+                    const SizedBox(width: 4),
+                    Text(
+                      reader.listeningMode.shortName,
+                      style: TextStyle(
+                        color: reader.listeningMode.color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings, size: 20),
             onPressed: () => Navigator.pushNamed(context, '/settings'),
+            visualDensity: VisualDensity.compact,
           ),
         ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(32),
-          child: UsageIndicator(),
-        ),
       ),
       body: Column(
         children: [
-          // Page info bar
-          if (reader.hasPdf)
-            Builder(builder: (ctx) {
-              final cs = Theme.of(ctx).colorScheme;
-              return Container(
-                color: cs.surface,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Page ${reader.currentPage + 1} of ${reader.totalPages}',
-                      style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                          fontSize: 12),
-                    ),
-                    // Mode chip — tap to change
-                    GestureDetector(
-                      onTap: () => ListeningModePicker.show(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: reader.listeningMode.color
-                              .withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: reader.listeningMode.color
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(reader.listeningMode.icon,
-                                size: 12,
-                                color: reader.listeningMode.color),
-                            const SizedBox(width: 4),
-                            Text(
-                              reader.listeningMode.displayName,
-                              style: TextStyle(
-                                color: reader.listeningMode.color,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    _StateChip(reader.state),
-                  ],
-                ),
-              );
-            }),
-
           // AI-processing indicator
           if (reader.isTranslating)
             Builder(builder: (ctx) {
               final cs = Theme.of(ctx).colorScheme;
+              final chunk = reader.processingChunk;
+              final total = reader.totalChunks;
+              final label = total > 1
+                  ? 'Processing part ${chunk + 1} of $total…'
+                  : reader.listeningMode == ListeningMode.wordToWord
+                      ? 'Translating…'
+                      : 'Processing with AI…';
               return Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -173,15 +175,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: cs.primary,
+                        value: total > 1 ? chunk / total : null,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      reader.listeningMode == ListeningMode.wordToWord
-                          ? 'Translating…'
-                          : 'Processing with AI…',
-                      style: TextStyle(color: cs.primary, fontSize: 12),
-                    ),
+                    Text(label,
+                        style: TextStyle(color: cs.primary, fontSize: 12)),
                   ],
                 ),
               );
@@ -202,14 +201,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               assistantText: reader.lastAssistantResponse,
             ),
 
-          // Speed control bar — only shown when a PDF is loaded
-          if (reader.hasPdf) _SpeedBar(reader: reader),
-
-          // Controls — SafeArea keeps them above the system navigation bar
-          SafeArea(
-            top: false,
-            child: _ControlBar(reader: reader),
-          ),
+          // ── Bottom player panel ──────────────────────────────────────────
+          if (reader.hasPdf) _BottomPlayer(reader: reader),
         ],
       ),
     );
@@ -383,41 +376,6 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
 
 // ── Supporting widgets ────────────────────────────────────────────────────────
 
-class _StateChip extends StatelessWidget {
-  final ReaderState state;
-  const _StateChip(this.state);
-
-  @override
-  Widget build(BuildContext context) {
-    Color color;
-    String label;
-    switch (state) {
-      case ReaderState.reading:
-        color = Colors.green;
-        label = '● Reading';
-        break;
-      case ReaderState.listening:
-        color = Colors.red;
-        label = '● Listening';
-        break;
-      case ReaderState.paused:
-        color = Colors.orange;
-        label = '⏸ Paused';
-        break;
-      case ReaderState.loading:
-        color = Colors.blue;
-        label = '⟳ Loading';
-        break;
-      default:
-        color = Colors.grey;
-        label = '○ Idle';
-    }
-    return Text(label,
-        style: TextStyle(
-            color: color, fontSize: 12, fontWeight: FontWeight.w600));
-  }
-}
-
 class _PdfTextView extends StatelessWidget {
   final String text;
   final bool isReading;
@@ -531,139 +489,191 @@ class _ConversationBubble extends StatelessWidget {
   }
 }
 
-class _SpeedBar extends StatelessWidget {
+/// Unified bottom player panel.
+///
+/// Layout (top → bottom):
+///   1. Thin page-progress bar
+///   2. Controls row: prev | slow | play/pause | fast | next | mic
+///   3. Speed pill + SafeArea bottom padding
+class _BottomPlayer extends StatelessWidget {
   final ReaderProvider reader;
-  const _SpeedBar({required this.reader});
+  const _BottomPlayer({required this.reader});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isReading = reader.state == ReaderState.reading;
     final rate = reader.speechRate;
+    final displayRate = rate / 0.5;
     final atMin = rate <= 0.25;
     final atMax = rate >= 1.5;
-    final displayRate = rate / 0.5;
+    final progress = reader.totalPages > 0
+        ? (reader.currentPage + 1) / reader.totalPages
+        : 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.speed, size: 16,
-              color: cs.onSurface.withValues(alpha: 0.35)),
-          const SizedBox(width: 8),
-          _SpeedButton(icon: Icons.remove, enabled: !atMin, onTap: reader.slowDown),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 52,
-            child: Text(
-              '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: cs.onSurface,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Page progress bar
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 2,
+              backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+            ),
+
+            // Controls row
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Previous page
+                  IconButton(
+                    tooltip: 'Previous page',
+                    icon: Icon(Icons.skip_previous,
+                        color: cs.onSurface.withValues(alpha: 0.7)),
+                    iconSize: 26,
+                    onPressed: reader.hasPdf && reader.currentPage > 0
+                        ? reader.previousPage
+                        : null,
+                  ),
+
+                  // Slow down
+                  _SmallControlButton(
+                    icon: Icons.remove,
+                    label: 'Slow',
+                    enabled: !atMin,
+                    onTap: reader.slowDown,
+                  ),
+
+                  // Play / Pause
+                  GestureDetector(
+                    onTap: reader.hasPdf
+                        ? () {
+                            if (isReading) {
+                              reader.pause();
+                            } else {
+                              reader.startReading();
+                            }
+                          }
+                        : null,
+                    child: Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: reader.hasPdf
+                            ? cs.primary
+                            : cs.onSurface.withValues(alpha: 0.12),
+                      ),
+                      child: Icon(
+                        isReading ? Icons.pause : Icons.play_arrow,
+                        color:
+                            reader.hasPdf ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.3),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+
+                  // Speed up
+                  _SmallControlButton(
+                    icon: Icons.add,
+                    label: 'Fast',
+                    enabled: !atMax,
+                    onTap: reader.speedUp,
+                  ),
+
+                  // Next page
+                  IconButton(
+                    tooltip: 'Next page',
+                    icon: Icon(Icons.skip_next,
+                        color: cs.onSurface.withValues(alpha: 0.7)),
+                    iconSize: 26,
+                    onPressed:
+                        reader.hasPdf && reader.currentPage < reader.totalPages - 1
+                            ? reader.nextPage
+                            : null,
+                  ),
+
+                  // Mic
+                  const VoiceInputButton(),
+                ],
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          _SpeedButton(icon: Icons.add, enabled: !atMax, onTap: reader.speedUp),
-        ],
+
+            // Speed pill
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.45),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SpeedButton extends StatelessWidget {
+class _SmallControlButton extends StatelessWidget {
   final IconData icon;
+  final String label;
   final bool enabled;
   final VoidCallback onTap;
-  const _SpeedButton({required this.icon, required this.enabled, required this.onTap});
+  const _SmallControlButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: enabled
-              ? cs.onSurface.withValues(alpha: 0.1)
-              : Colors.transparent,
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: enabled
-              ? cs.onSurface
-              : cs.onSurface.withValues(alpha: 0.2),
+    return Tooltip(
+      message: label,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: enabled
+                ? cs.onSurface.withValues(alpha: 0.08)
+                : Colors.transparent,
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: enabled
+                ? cs.onSurface
+                : cs.onSurface.withValues(alpha: 0.2),
+          ),
         ),
       ),
     );
   }
 }
-class _ControlBar extends StatelessWidget {
-  final ReaderProvider reader;
-  const _ControlBar({required this.reader});
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-            tooltip: 'Previous page',
-            icon: Icon(Icons.skip_previous,
-                color: cs.onSurface.withValues(alpha: 0.6)),
-            onPressed: reader.hasPdf ? reader.previousPage : null,
-          ),
-
-          // Main play/pause
-          GestureDetector(
-            onTap: reader.hasPdf ? _togglePlayPause(context, reader) : null,
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: cs.primary,
-              ),
-              child: Icon(
-                reader.state == ReaderState.reading
-                    ? Icons.pause
-                    : Icons.play_arrow,
-                color: cs.onPrimary,
-                size: 30,
-              ),
-            ),
-          ),
-
-          // Mic / voice button
-          const VoiceInputButton(),
-
-          IconButton(
-            tooltip: 'Next page',
-            icon: Icon(Icons.skip_next,
-                color: cs.onSurface.withValues(alpha: 0.6)),
-            onPressed: reader.hasPdf ? reader.nextPage : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  VoidCallback? _togglePlayPause(BuildContext context, ReaderProvider reader) {
-    return () {
-      if (reader.state == ReaderState.reading) {
-        reader.pause();
-      } else {
-        reader.startReading();
-      }
-    };
-  }
-}

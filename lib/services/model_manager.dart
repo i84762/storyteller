@@ -84,11 +84,15 @@ class ModelManager {
   /// Transforms raw page text according to the active [ListeningMode].
   /// When [targetLanguage] is set, the AI responds in that language.
   /// Falls back to [pageText] on error.
+  ///
+  /// [onProgress] is called as (completedChunks, totalChunks) during
+  /// on-device processing so the UI can show granular progress.
   Future<String> transformPageForMode(
     String pageText,
     ListeningMode mode, {
     String? focusTopic,
     String? targetLanguage,
+    void Function(int done, int total)? onProgress,
   }) async {
     if (mode == ListeningMode.wordToWord && targetLanguage == null) {
       return pageText;
@@ -104,6 +108,8 @@ class ModelManager {
       systemPrompt: systemPrompt,
       userPrompt: pageText,
       maxOutputTokens: 1024,
+      mode: mode,
+      onProgress: onProgress,
     );
   }
 
@@ -113,6 +119,8 @@ class ModelManager {
     required String systemPrompt,
     required String userPrompt,
     int maxOutputTokens = 512,
+    ListeningMode? mode,
+    void Function(int done, int total)? onProgress,
   }) async {
     switch (_currentTier) {
       case SubscriptionTier.free:
@@ -125,7 +133,8 @@ class ModelManager {
         return _generateByok(systemPrompt, userPrompt,
             maxOutputTokens: maxOutputTokens);
       case SubscriptionTier.onDevice:
-        return _generateOnDevice(systemPrompt, userPrompt);
+        return _generateOnDevice(systemPrompt, userPrompt,
+            mode: mode, onProgress: onProgress);
     }
   }
 
@@ -179,11 +188,25 @@ class ModelManager {
     }
   }
 
-  Future<String> _generateOnDevice(String system, String user) async {
+  Future<String> _generateOnDevice(
+    String system,
+    String user, {
+    ListeningMode? mode,
+    void Function(int done, int total)? onProgress,
+  }) async {
     try {
-      return await _onDeviceService.generateContent(system, user);
+      // Use chunked generation so long pages don't time out Gemini Nano.
+      // Modes that produce short output (summary, skimmed, quiz, focus)
+      // truncate input instead — chunking isn't needed and wastes two calls.
+      final truncateOnly = mode != null && !mode.chunksForOnDevice;
+      return await _onDeviceService.generateContentChunked(
+        system,
+        user,
+        truncateOnly: truncateOnly,
+        onProgress: onProgress,
+      );
     } on OnDeviceUnavailableException {
-      rethrow; // caller will surface this to the user
+      rethrow;
     }
   }
 }

@@ -78,9 +78,15 @@ class ReaderProvider extends ChangeNotifier {
   // ── AI state ──────────────────────────────────────────────────────────────
   bool _isTranslating = false;
   String? _aiError;
+  int _processingChunk = 0;
+  int _totalChunks = 0;
 
   bool get isTranslating => _isTranslating;
   String? get aiError => _aiError;
+  /// Current chunk index (1-based display: add 1 before showing).
+  int get processingChunk => _processingChunk;
+  /// Total number of chunks for the current AI operation. 0 = unknown.
+  int get totalChunks => _totalChunks;
 
   void clearAiError() {
     _aiError = null;
@@ -431,6 +437,8 @@ class ReaderProvider extends ChangeNotifier {
     }
 
     _isTranslating = true;
+    _processingChunk = 0;
+    _totalChunks = 0;
     notifyListeners();
 
     try {
@@ -439,6 +447,11 @@ class ReaderProvider extends ChangeNotifier {
         _listeningMode,
         focusTopic: _focusTopic,
         targetLanguage: _targetLanguage,
+        onProgress: (done, total) {
+          _processingChunk = done;
+          _totalChunks = total;
+          notifyListeners();
+        },
       );
       final result =
           (transformed != null && transformed.isNotEmpty) ? transformed : rawText;
@@ -455,6 +468,8 @@ class ReaderProvider extends ChangeNotifier {
       return rawText;
     } finally {
       _isTranslating = false;
+      _processingChunk = 0;
+      _totalChunks = 0;
       notifyListeners();
     }
   }

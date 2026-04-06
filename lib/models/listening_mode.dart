@@ -115,4 +115,33 @@ extension ListeningModeX on ListeningMode {
 
   /// Whether this mode requires the user to supply a topic string.
   bool get requiresTopic => this == ListeningMode.focus;
+
+  /// Short label for tight UI spaces (AppBar chips, etc.)
+  String get shortName {
+    switch (this) {
+      case ListeningMode.wordToWord: return 'Normal';
+      case ListeningMode.summary:   return 'Summary';
+      case ListeningMode.skimmed:   return 'Skimmed';
+      case ListeningMode.study:     return 'Study';
+      case ListeningMode.deepDive:  return 'Deep Dive';
+      case ListeningMode.storyteller: return 'Story';
+      case ListeningMode.focus:     return 'Focus';
+      case ListeningMode.quiz:      return 'Quiz';
+    }
+  }
+
+  /// Whether this mode should process text in chunks for on-device AI.
+  /// Modes with short output (summary, skimmed, focus, quiz) just truncate
+  /// input instead of chunking, since they produce compact output anyway.
+  bool get chunksForOnDevice {
+    switch (this) {
+      case ListeningMode.wordToWord:
+      case ListeningMode.study:
+      case ListeningMode.deepDive:
+      case ListeningMode.storyteller:
+        return true;
+      default:
+        return false;
+    }
+  }
 }

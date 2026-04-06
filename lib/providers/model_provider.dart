@@ -50,6 +50,7 @@ class ModelProvider extends ChangeNotifier {
     ListeningMode mode, {
     String? focusTopic,
     String? targetLanguage,
+    void Function(int done, int total)? onProgress,
   }) async {
     try {
       return await modelManager.transformPageForMode(
@@ -57,6 +58,7 @@ class ModelProvider extends ChangeNotifier {
         mode,
         focusTopic: focusTopic,
         targetLanguage: targetLanguage,
+        onProgress: onProgress,
       );
     } on OnDeviceUnavailableException catch (e) {
       _error = e.toString();

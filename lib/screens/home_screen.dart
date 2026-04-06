@@ -16,121 +16,174 @@ class HomeScreen extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final gradientColors = isDark
-        ? const [Color(0xFF100D16), Color(0xFF1A1528), Color(0xFF221D33)]
-        : const [Color(0xFFF8F0E3), Color(0xFFF0DCC0), Color(0xFFEDD8B8)];
+    // Most-recent book (hero candidate)
+    final heroBook = books.isNotEmpty ? books.first : null;
+    // Remaining recent books (after the hero)
+    final shelfBooks = books.length > 1 ? books.skip(1).take(2).toList() : <BookRecord>[];
 
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: gradientColors,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF100D16), const Color(0xFF1A1528)]
+                : [const Color(0xFFF8F0E3), const Color(0xFFEDD8B8)],
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'StoryTeller',
-                          style: TextStyle(
-                            color: cs.onSurface,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _greeting(),
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.5),
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'StoryTeller',
+                              style: TextStyle(
+                                color: cs.onSurface,
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Tier pill
+                      GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, '/subscription'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            model.currentTier.displayName,
+                            style: TextStyle(
+                              color: cs.onPrimaryContainer,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        Text(
-                          model.currentTier.displayName,
-                          style: TextStyle(
-                              color: cs.onSurface.withValues(alpha: 0.5),
-                              fontSize: 13),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.tune,
-                              color: cs.onSurface.withValues(alpha: 0.7)),
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/settings'),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.workspace_premium,
-                              color: Colors.amber),
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/subscription'),
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-
-              Expanded(
-                child: books.isEmpty
-                    ? _HeroSection(reader: reader)
-                    : _RecentSection(
-                        books: books.take(3).toList(),
-                        hasMore: books.length > 3,
-                        reader: reader,
-                        onOpen: (rec) => _loadAndNavigate(context, reader, rec),
                       ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                    minimumSize: const Size.fromHeight(56),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(Icons.tune,
+                            color: cs.onSurface.withValues(alpha: 0.6)),
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/settings'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Open PDF',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
-                  onPressed: () => _openPdf(context, reader),
                 ),
               ),
 
-              if (reader.hasPdf) ...[
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: cs.onSurface.withValues(alpha: 0.7),
-                      side: BorderSide(
-                          color: cs.onSurface.withValues(alpha: 0.25)),
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+              // ── Hero card (continue listening) ────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  child: heroBook != null
+                      ? _HeroBookCard(
+                          record: heroBook,
+                          reader: reader,
+                          onOpen: (r) =>
+                              _loadAndNavigate(context, reader, r),
+                        )
+                      : _WelcomeHero(reader: reader),
+                ),
+              ),
+
+              // ── Recent shelf ──────────────────────────────────────────────
+              if (shelfBooks.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 16, 10),
+                    child: Row(
+                      children: [
+                        Text(
+                          'RECENT',
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.45),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/library'),
+                          style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact),
+                          child: Text('All books',
+                              style: TextStyle(
+                                  color: cs.primary, fontSize: 12)),
+                        ),
+                      ],
                     ),
-                    icon: const Icon(Icons.menu_book),
-                    label: const Text('Continue Reading'),
-                    onPressed: () => Navigator.pushNamed(context, '/reader'),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: BookCard(
+                        record: shelfBooks[i],
+                        reader: reader,
+                        onOpen: (r) => _loadAndNavigate(ctx, reader, r),
+                      ),
+                    ),
+                    childCount: shelfBooks.length,
                   ),
                 ),
               ],
 
-              const SizedBox(height: 40),
+              // Bottom padding
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         ),
       ),
+
+      // ── FAB: Open PDF ──────────────────────────────────────────────────────
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openPdf(context, reader),
+        backgroundColor: cs.primary,
+        foregroundColor: cs.onPrimary,
+        icon: const Icon(Icons.upload_file),
+        label: const Text('Open PDF',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
+  }
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning 👋';
+    if (h < 17) return 'Good afternoon 👋';
+    return 'Good evening 👋';
   }
 
   Future<void> _openPdf(BuildContext context, ReaderProvider reader) async {
@@ -145,10 +198,9 @@ class HomeScreen extends StatelessWidget {
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
           action: SnackBarAction(
-            label: 'Dismiss',
-            textColor: Colors.white,
-            onPressed: reader.clearError,
-          ),
+              label: 'Dismiss',
+              textColor: Colors.white,
+              onPressed: reader.clearError),
         ),
       );
       reader.clearError();
@@ -174,53 +226,53 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ── Hero section ──────────────────────────────────────────────────────────────
+// ── Welcome hero (no books yet) ───────────────────────────────────────────────
 
-class _HeroSection extends StatelessWidget {
+class _WelcomeHero extends StatelessWidget {
   final ReaderProvider reader;
-  const _HeroSection({required this.reader});
+  const _WelcomeHero({required this.reader});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Center(
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+            color: cs.outline.withValues(alpha: 0.2)),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 160,
-            height: 160,
+            width: 88,
+            height: 88,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: cs.primaryContainer,
-              boxShadow: [
-                BoxShadow(
-                  color: cs.primary.withValues(alpha: 0.2),
-                  blurRadius: 40,
-                  spreadRadius: 10,
-                ),
-              ],
             ),
-            child: Icon(Icons.auto_stories, color: cs.primary, size: 72),
+            child: Icon(Icons.auto_stories, color: cs.primary, size: 44),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
           Text(
-            'Your AI Reading\nCompanion',
+            'Your AI Reading Companion',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: cs.onSurface,
-              fontSize: 24,
-              height: 1.4,
-              fontWeight: FontWeight.w600,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Load a PDF and let AI read it to you.\nAsk questions. Navigate by voice.',
+            'Load any PDF and listen in any language.\nAI-powered summaries, study mode, and more.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.5),
-              fontSize: 14,
+              fontSize: 13,
               height: 1.5,
             ),
           ),
@@ -230,76 +282,14 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
-// ── Recent books (home — max 3) ───────────────────────────────────────────────
+// ── Hero book card (continue listening) ──────────────────────────────────────
 
-class _RecentSection extends StatelessWidget {
-  final List<BookRecord> books;
-  final bool hasMore;
-  final ReaderProvider reader;
-  final void Function(BookRecord) onOpen;
-
-  const _RecentSection({
-    required this.books,
-    required this.hasMore,
-    required this.reader,
-    required this.onOpen,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-          child: Row(
-            children: [
-              Icon(Icons.history,
-                  color: cs.onSurface.withValues(alpha: 0.5), size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Recent',
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.7),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              if (hasMore)
-                TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/library'),
-                  child: Text('See all →',
-                      style: TextStyle(color: cs.primary, fontSize: 13)),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            itemCount: books.length,
-            itemBuilder: (ctx, i) =>
-                BookCard(record: books[i], reader: reader, onOpen: onOpen),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Book card (shared with LibraryScreen) ─────────────────────────────────────
-
-class BookCard extends StatelessWidget {
+class _HeroBookCard extends StatelessWidget {
   final BookRecord record;
   final ReaderProvider reader;
   final void Function(BookRecord) onOpen;
 
-  const BookCard({
-    super.key,
+  const _HeroBookCard({
     required this.record,
     required this.reader,
     required this.onOpen,
@@ -309,108 +299,193 @@ class BookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final progress = record.progress;
-    final timeAgo = _timeAgo(record.lastOpened);
+    final pct = (progress * 100).round();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => onOpen(record),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 3,
-                      backgroundColor: cs.outline.withValues(alpha: 0.3),
-                      valueColor: AlwaysStoppedAnimation(
-                          record.isPinned ? Colors.amber : cs.primary),
-                    ),
-                  ),
-                  Icon(
-                    record.isPinned ? Icons.push_pin : Icons.menu_book,
-                    color: record.isPinned
-                        ? Colors.amber
-                        : cs.onSurface.withValues(alpha: 0.6),
-                    size: 22,
-                  ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [cs.primaryContainer, cs.surfaceContainerHighest]
+              : [cs.primaryContainer.withValues(alpha: 0.8),
+                 cs.primaryContainer.withValues(alpha: 0.3)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: cs.primary.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => onOpen(record),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      record.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14),
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.menu_book,
+                          color: cs.primary, size: 28),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Page ${record.lastPage + 1} of ${record.totalPages}  ·  $timeAgo',
-                      style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.5),
-                          fontSize: 11),
-                    ),
-                    const SizedBox(height: 5),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 3,
-                        backgroundColor: cs.outline.withValues(alpha: 0.3),
-                        valueColor: AlwaysStoppedAnimation(cs.primary),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CONTINUE LISTENING',
+                            style: TextStyle(
+                              color: cs.primary.withValues(alpha: 0.7),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            record.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      record.isPinned
-                          ? Icons.push_pin
-                          : Icons.push_pin_outlined,
-                      size: 18,
-                      color: record.isPinned
-                          ? Colors.amber
-                          : cs.onSurface.withValues(alpha: 0.35),
+                const SizedBox(height: 20),
+
+                // Progress bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation(cs.primary),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Text(
+                      'Page ${record.lastPage + 1} of ${record.totalPages}',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.55),
+                        fontSize: 12,
+                      ),
                     ),
-                    tooltip: record.isPinned ? 'Unpin' : 'Pin',
-                    onPressed: () => reader.togglePin(record.path),
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close,
-                        size: 18,
-                        color: cs.onSurface.withValues(alpha: 0.28)),
-                    tooltip: 'Remove from history',
-                    onPressed: () => _confirmRemove(context),
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                ],
-              ),
-            ],
+                    const Spacer(),
+                    Text(
+                      '$pct% complete',
+                      style: TextStyle(
+                        color: cs.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Play button row
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: cs.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.play_arrow, size: 22),
+                        label: const Text('Resume',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600)),
+                        onPressed: () => onOpen(record),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _PinButton(record: record, reader: reader),
+                    const SizedBox(width: 4),
+                    _RemoveButton(record: record, reader: reader),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PinButton extends StatelessWidget {
+  final BookRecord record;
+  final ReaderProvider reader;
+  const _PinButton({required this.record, required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return IconButton(
+      icon: Icon(
+        record.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+        size: 20,
+        color: record.isPinned
+            ? Colors.amber
+            : cs.onSurface.withValues(alpha: 0.4),
+      ),
+      tooltip: record.isPinned ? 'Unpin' : 'Pin',
+      onPressed: () => reader.togglePin(record.path),
+      style: IconButton.styleFrom(
+        backgroundColor: cs.onSurface.withValues(alpha: 0.07),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
+
+class _RemoveButton extends StatelessWidget {
+  final BookRecord record;
+  final ReaderProvider reader;
+  const _RemoveButton({required this.record, required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return IconButton(
+      icon: Icon(Icons.close,
+          size: 18, color: cs.onSurface.withValues(alpha: 0.35)),
+      tooltip: 'Remove',
+      onPressed: () => _confirmRemove(context),
+      style: IconButton.styleFrom(
+        backgroundColor: cs.onSurface.withValues(alpha: 0.07),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -435,6 +510,91 @@ class BookCard extends StatelessWidget {
                     color: Theme.of(context).colorScheme.error)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Compact book card (recent shelf) ─────────────────────────────────────────
+
+class BookCard extends StatelessWidget {
+  final BookRecord record;
+  final ReaderProvider reader;
+  final void Function(BookRecord) onOpen;
+
+  const BookCard({
+    super.key,
+    required this.record,
+    required this.reader,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final progress = record.progress;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => onOpen(record),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 3,
+                      backgroundColor: cs.outline.withValues(alpha: 0.2),
+                      valueColor: AlwaysStoppedAnimation(
+                          record.isPinned ? Colors.amber : cs.primary),
+                    ),
+                  ),
+                  Icon(
+                    record.isPinned ? Icons.push_pin : Icons.menu_book,
+                    color: record.isPinned
+                        ? Colors.amber
+                        : cs.onSurface.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      record.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'p.${record.lastPage + 1}/${record.totalPages}  ·  ${_timeAgo(record.lastOpened)}',
+                      style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.45),
+                          fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  color: cs.onSurface.withValues(alpha: 0.3), size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
