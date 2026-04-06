@@ -206,6 +206,7 @@ class ReaderProvider extends ChangeNotifier {
 
   // ── Reader state ──────────────────────────────────────────────────────────
   ReaderState _state = ReaderState.idle;
+  bool _isLoadingPage = false;
   int _currentPage = 0;
   String? _pdfPath;
   String? _lastUserInput;
@@ -213,6 +214,7 @@ class ReaderProvider extends ChangeNotifier {
   String? _errorMessage;
 
   ReaderState get state => _state;
+  bool get isLoadingPage => _isLoadingPage;
   int get currentPage => _currentPage;
   int get totalPages => _pdfService.totalPages;
   String? get pdfPath => _pdfPath;
@@ -408,9 +410,10 @@ class ReaderProvider extends ChangeNotifier {
       _saveProgress();
       _clearWordState();
       _state = ReaderState.paused;
+      _isLoadingPage = true;
       notifyListeners();
-      // Pre-load raw text so displayText is populated immediately.
       await _pdfService.getPageAsync(_currentPage);
+      _isLoadingPage = false;
       notifyListeners();
     }
   }
@@ -422,8 +425,10 @@ class ReaderProvider extends ChangeNotifier {
       _saveProgress();
       _clearWordState();
       _state = ReaderState.paused;
+      _isLoadingPage = true;
       notifyListeners();
       await _pdfService.getPageAsync(_currentPage);
+      _isLoadingPage = false;
       notifyListeners();
     }
   }
@@ -435,8 +440,10 @@ class ReaderProvider extends ChangeNotifier {
       _saveProgress();
       _clearWordState();
       _state = ReaderState.paused;
+      _isLoadingPage = true;
       notifyListeners();
       await _pdfService.getPageAsync(_currentPage);
+      _isLoadingPage = false;
       notifyListeners();
     }
   }

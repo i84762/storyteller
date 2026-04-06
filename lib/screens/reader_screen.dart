@@ -408,6 +408,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildTextView(ReaderProvider reader) {
+    // Show thematic loader while raw page text is being fetched from disk.
+    if (reader.isLoadingPage) {
+      return Center(
+        child: StoryLoader(message: 'Turning the page…'),
+      );
+    }
+
     if (reader.pictorialEnabled) {
       return _PictorialView(
         key: ValueKey('pic_${reader.currentPage}'),

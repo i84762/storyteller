@@ -2,7 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// A storytelling-themed animated loader.
-/// Shows an open book with animated turning pages and floating sparkles.
+///
+/// Visual: an open book icon above five animated "text line" bars that wave
+/// with staggered timing — like words appearing on a fresh page.
 /// Respects the active app theme (sepia / dark-purple / system).
 class StoryLoader extends StatefulWidget {
   final String? message;
@@ -15,118 +17,110 @@ class StoryLoader extends StatefulWidget {
 }
 
 class _StoryLoaderState extends State<StoryLoader>
-    with TickerProviderStateMixin {
-  late final AnimationController _pageCtrl;
-  late final AnimationController _glowCtrl;
-  late final AnimationController _sparkleCtrl;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _pageCtrl = AnimationController(
+    _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: false);
-
-    _glowCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-
-    _sparkleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1400),
     )..repeat();
   }
 
   @override
   void dispose() {
-    _pageCtrl.dispose();
-    _glowCtrl.dispose();
-    _sparkleCtrl.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
+
+  // Each bar has a phase offset so they wave in sequence left-to-right.
+  static const _barCount = 5;
+  static const _barWidthFractions = [0.72, 0.88, 0.60, 0.80, 0.50];
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final barWidth = widget.size * 0.95;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Glow ring
-              AnimatedBuilder(
-                animation: _glowCtrl,
-                builder: (_, __) => Container(
-                  width: widget.size,
-                  height: widget.size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: cs.primary
-                            .withValues(alpha: 0.1 + 0.15 * _glowCtrl.value),
-                        blurRadius: 20 + 10 * _glowCtrl.value,
-                        spreadRadius: 2,
-                      ),
-                    ],
+        // ── Open book icon with soft glow ──────────────────────────────
+        AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) {
+            final glow = 0.5 + 0.5 * math.sin(_ctrl.value * 2 * math.pi);
+            return Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.primary.withValues(alpha: 0.12 + 0.12 * glow),
+                    blurRadius: 18 + 8 * glow,
+                    spreadRadius: 2,
                   ),
-                ),
+                ],
               ),
-
-              // Book icon base
-              Icon(
+              child: Icon(
                 Icons.menu_book_rounded,
-                size: widget.size * 0.55,
-                color: cs.primary.withValues(alpha: 0.9),
+                size: widget.size * 0.52,
+                color: cs.primary.withValues(alpha: 0.85 + 0.15 * glow),
               ),
+            );
+          },
+        ),
 
-              // Animated turning page
-              AnimatedBuilder(
-                animation: _pageCtrl,
-                builder: (_, __) {
-                  final angle = _pageCtrl.value * math.pi;
-                  final isFlipped = _pageCtrl.value > 0.5;
-                  final pageColor = isFlipped
-                      ? cs.primaryContainer
-                      : cs.secondaryContainer;
-                  return Transform(
-                    alignment: Alignment.centerLeft,
-                    transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.002)
-                      ..rotateY(angle),
-                    child: Container(
-                      width: widget.size * 0.22,
-                      height: widget.size * 0.30,
-                      margin: EdgeInsets.only(left: widget.size * 0.02),
-                      decoration: BoxDecoration(
-                        color: pageColor.withValues(alpha: 0.85),
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(3),
-                          bottomRight: Radius.circular(3),
+        const SizedBox(height: 16),
+
+        // ── Animated text-line bars ────────────────────────────────────
+        SizedBox(
+          width: barWidth,
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, __) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(_barCount, (i) {
+                  // Each bar lags by 1/barCount of the total cycle.
+                  final phase = i / _barCount;
+                  final t = (_ctrl.value + phase) % 1.0;
+                  // Sine wave: bar brightens then dims repeatedly.
+                  final brightness =
+                      0.18 + 0.55 * math.pow(math.sin(t * math.pi), 2);
+                  final scaleX = 0.6 + 0.4 * math.pow(
+                      math.sin((t + 0.15) * math.pi).clamp(0.0, 1.0), 1.5);
+                  return Padding(
+                    padding: EdgeInsets.only(
+                        bottom: i < _barCount - 1 ? 7 : 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor:
+                            _barWidthFractions[i] * scaleX,
+                        child: Container(
+                          height: 7,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            color: cs.primary.withValues(alpha: brightness),
+                          ),
                         ),
                       ),
                     ),
                   );
-                },
-              ),
-
-              // Floating sparkles
-              ..._buildSparkles(cs),
-            ],
+                }),
+              );
+            },
           ),
         ),
+
         if (widget.message != null) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           Text(
             widget.message!,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.6),
+              color: cs.onSurface.withValues(alpha: 0.5),
               fontSize: 13,
               letterSpacing: 0.3,
             ),
@@ -135,41 +129,5 @@ class _StoryLoaderState extends State<StoryLoader>
         ],
       ],
     );
-  }
-
-  List<Widget> _buildSparkles(ColorScheme cs) {
-    const sparklePositions = [
-      Offset(-0.38, -0.38),
-      Offset(0.40, -0.32),
-      Offset(-0.42, 0.28),
-      Offset(0.38, 0.36),
-    ];
-    return sparklePositions.asMap().entries.map((e) {
-      final offset = e.value;
-      final phase = e.key / sparklePositions.length;
-      return AnimatedBuilder(
-        animation: _sparkleCtrl,
-        builder: (_, __) {
-          final t = (_sparkleCtrl.value + phase) % 1.0;
-          final opacity = math.sin(t * math.pi).clamp(0.0, 1.0);
-          final scale = 0.5 + 0.5 * math.sin(t * math.pi);
-          return Positioned(
-            left: widget.size / 2 + offset.dx * widget.size / 2 - 6,
-            top: widget.size / 2 + offset.dy * widget.size / 2 - 6,
-            child: Transform.scale(
-              scale: scale,
-              child: Opacity(
-                opacity: opacity,
-                child: Icon(
-                  Icons.auto_awesome,
-                  size: 10,
-                  color: cs.tertiary,
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    }).toList();
   }
 }
