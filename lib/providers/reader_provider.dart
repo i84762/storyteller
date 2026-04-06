@@ -409,6 +409,9 @@ class ReaderProvider extends ChangeNotifier {
       _clearWordState();
       _state = ReaderState.paused;
       notifyListeners();
+      // Pre-load raw text so displayText is populated immediately.
+      await _pdfService.getPageAsync(_currentPage);
+      notifyListeners();
     }
   }
 
@@ -420,6 +423,8 @@ class ReaderProvider extends ChangeNotifier {
       _clearWordState();
       _state = ReaderState.paused;
       notifyListeners();
+      await _pdfService.getPageAsync(_currentPage);
+      notifyListeners();
     }
   }
 
@@ -430,6 +435,8 @@ class ReaderProvider extends ChangeNotifier {
       _saveProgress();
       _clearWordState();
       _state = ReaderState.paused;
+      notifyListeners();
+      await _pdfService.getPageAsync(_currentPage);
       notifyListeners();
     }
   }
