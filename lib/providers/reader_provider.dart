@@ -36,6 +36,12 @@ class ReaderProvider extends ChangeNotifier {
   /// Per-page cache of AI-transformed text; cleared on mode / language / PDF change.
   final Map<int, String> _transformedCache = {};
 
+  /// Page currently being prefetched in the background. null = idle.
+  int? _prefetchingPage;
+
+  /// Maximum number of pages to look ahead when prefetching.
+  static const int _prefetchLookahead = 2;
+
   ListeningMode get listeningMode => _listeningMode;
   String? get focusTopic => _focusTopic;
 
@@ -43,6 +49,7 @@ class ReaderProvider extends ChangeNotifier {
     _listeningMode = mode;
     _focusTopic = focusTopic;
     _transformedCache.clear();
+    _prefetchingPage = null; // stale prefetch no longer relevant
     _clearWordState();
     notifyListeners();
   }
@@ -58,6 +65,7 @@ class ReaderProvider extends ChangeNotifier {
   Future<void> setTargetLanguage(String? languageCode) async {
     _targetLanguage = languageCode;
     _transformedCache.clear();
+    _prefetchingPage = null;
     _clearWordState();
     await _audioHandler.setLanguage(languageCode ?? 'en-US');
     if (_state == ReaderState.reading) {
@@ -212,6 +220,7 @@ class ReaderProvider extends ChangeNotifier {
       _currentPage = 0;
       await _pdfService.getPageAsync(0);
       _transformedCache.clear();
+      _prefetchingPage = null;
       _clearWordState();
       _state = ReaderState.idle;
       _saveProgress();
@@ -236,6 +245,7 @@ class ReaderProvider extends ChangeNotifier {
           record.lastPage.clamp(0, _pdfService.totalPages - 1);
       await _pdfService.getPageAsync(_currentPage);
       _transformedCache.clear();
+      _prefetchingPage = null;
       _clearWordState();
       _state = ReaderState.idle;
       notifyListeners();
@@ -257,6 +267,8 @@ class ReaderProvider extends ChangeNotifier {
     final text = await _getTextForMode(_currentPage, rawText);
     _prepareSpokenText(text, 0);
     notifyListeners();
+    // Current page is ready — start prefetching ahead in the background.
+    _schedulePrefetch(_currentPage + 1);
     await _audioHandler.speakText(
       text,
       title: _bookTitle,
@@ -379,6 +391,8 @@ class ReaderProvider extends ChangeNotifier {
     final text = await _getTextForMode(index, rawText);
     _prepareSpokenText(text, 0);
     notifyListeners();
+    // Current page ready — prefetch ahead.
+    _schedulePrefetch(index + 1);
     await _audioHandler.speakText(
       text,
       title: _bookTitle,
@@ -479,6 +493,66 @@ class ReaderProvider extends ChangeNotifier {
     return _listeningMode == ListeningMode.wordToWord
         ? base
         : '$base · ${_listeningMode.displayName}';
+  }
+
+  // ── Background prefetch ───────────────────────────────────────────────────
+
+  /// Whether the current mode requires AI processing.
+  bool get _needsAiProcessing =>
+      !(_listeningMode == ListeningMode.wordToWord && _targetLanguage == null);
+
+  /// Schedules a silent background prefetch for [page] if it isn't cached yet
+  /// and is within the lookahead window. Safe to call multiple times.
+  void _schedulePrefetch(int page) {
+    if (!_needsAiProcessing) return;
+    if (modelProvider == null) return;
+    if (page >= totalPages || page < 0) return;
+    if (page > _currentPage + _prefetchLookahead) return;
+    if (_transformedCache.containsKey(page)) {
+      // Already cached — try to push the window one further.
+      _schedulePrefetch(page + 1);
+      return;
+    }
+    if (_prefetchingPage == page) return; // already in-flight
+    _prefetchingPage = page;
+    _prefetchPage(page); // fire and forget
+  }
+
+  /// Processes [page] in the background and writes the result to
+  /// [_transformedCache]. Shows no loading indicators — completely silent.
+  /// After finishing, chains to the next page to keep the lookahead rolling.
+  Future<void> _prefetchPage(int page) async {
+    try {
+      final rawText = await _pdfService.getPageAsync(page);
+      if (rawText.trim().isEmpty) return;
+
+      // Abort if settings changed while we were fetching the PDF page.
+      if (_prefetchingPage != page) return;
+      if (_transformedCache.containsKey(page)) return;
+
+      final transformed = await modelProvider!.transformPageForMode(
+        rawText,
+        _listeningMode,
+        focusTopic: _focusTopic,
+        targetLanguage: _targetLanguage,
+        // No onProgress — this is silent background work.
+      );
+
+      // Discard if settings changed mid-flight (cache was cleared).
+      if (_prefetchingPage != page) return;
+
+      if (transformed != null && transformed.isNotEmpty) {
+        _transformedCache[page] = transformed;
+      }
+    } catch (_) {
+      // Silent failure — the page will be processed on-demand when reached.
+    } finally {
+      if (_prefetchingPage == page) {
+        _prefetchingPage = null;
+        // Chain: immediately try the next page in the lookahead window.
+        _schedulePrefetch(page + 1);
+      }
+    }
   }
 
   Future<void> speedUp() => _applySpeedChange(_audioHandler.speedUp);
