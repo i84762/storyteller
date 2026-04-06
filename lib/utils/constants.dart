@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 
 class AppConstants {
   /// In debug builds every subscription tier is unlocked for testing.
@@ -92,8 +93,10 @@ When controlling playback, acknowledge the command warmly.
     ListeningMode mode, {
     String? focusTopic,
     String? targetLanguage,
+    ReadingTone tone = ReadingTone.neutral,
   }) {
     final langInstr = _langInstruction(targetLanguage);
+    final toneInstr = tone.promptInstruction;
 
     switch (mode) {
       case ListeningMode.wordToWord:
@@ -103,7 +106,7 @@ When controlling playback, acknowledge the command warmly.
         return '''
 Translate the following text into $langName.
 Preserve all meaning and detail faithfully. Write as natural spoken prose.
-Do not use bullet points, numbered lists, headers, or markdown symbols.
+Do not use bullet points, numbered lists, headers, or markdown symbols.$toneInstr
 ''';
 
       case ListeningMode.summary:
@@ -112,7 +115,7 @@ You are an AI reading assistant.
 Summarise the following page in 3 to 5 clear, complete sentences that capture the main ideas.
 Write as natural prose suitable to be read aloud.
 Do not use bullet points, numbered lists, markdown formatting, or headers.
-Speak directly as if narrating to a listener.$langInstr
+Speak directly as if narrating to a listener.$toneInstr$langInstr
 ''';
 
       case ListeningMode.skimmed:
@@ -121,7 +124,7 @@ You are an AI reading assistant.
 From the following text, extract the 5 most important sentences that convey the core meaning.
 Join them naturally as spoken prose, filling in only the minimum connective words needed.
 Do not add new information, bullet points, or markdown formatting.
-The result must sound natural when read aloud.$langInstr
+The result must sound natural when read aloud.$toneInstr$langInstr
 ''';
 
       case ListeningMode.study:
@@ -131,7 +134,7 @@ Transform the following text into a spoken study guide.
 Start with a one-sentence statement of the main topic.
 Then present the key facts, definitions, and important terms as clear spoken sentences.
 End with a one-sentence "remember this" takeaway.
-Do not use bullet points, numbered lists, or markdown. Write as natural speech.$langInstr
+Do not use bullet points, numbered lists, or markdown. Write as natural speech.$toneInstr$langInstr
 ''';
 
       case ListeningMode.deepDive:
@@ -140,7 +143,7 @@ You are an educational narrator.
 Read the following text and enrich it with brief contextual explanations.
 For each major concept, add one clarifying sentence of useful background or real-world context immediately after it is introduced.
 Keep all additions concise. The result should flow naturally as spoken audio.
-Do not use bullet points or markdown.$langInstr
+Do not use bullet points or markdown.$toneInstr$langInstr
 ''';
 
       case ListeningMode.storyteller:
@@ -148,7 +151,7 @@ Do not use bullet points or markdown.$langInstr
 You are a skilled audiobook narrator.
 Rewrite the following text in an engaging, narrative voice as if telling a compelling story.
 Preserve every fact and piece of information, but make the language vivid, fluid, and captivating.
-Write as natural flowing prose suitable for listening — no bullet points or markdown.$langInstr
+Write as natural flowing prose suitable for listening — no bullet points or markdown.$toneInstr$langInstr
 ''';
 
       case ListeningMode.focus:
@@ -160,7 +163,7 @@ From the following text, extract and present only the content directly relevant 
 Write in clear, natural spoken sentences.
 If nothing in the text is relevant to "$topic", say exactly:
 "This page does not contain information about $topic."
-Do not use bullet points, numbered lists, or markdown.$langInstr
+Do not use bullet points, numbered lists, or markdown.$toneInstr$langInstr
 ''';
 
       case ListeningMode.quiz:
@@ -171,7 +174,7 @@ First, generate exactly 2 short study questions that test understanding of the k
 After each question, immediately say "The answer is:" followed by a one-sentence answer.
 Then say "Now, here is a summary:" followed by a 2 to 3 sentence summary of the page.
 Format for audio only — no bullet points, no numbering, no markdown symbols.
-Use natural spoken transitions like "First question:", "Second question:", "The answer is:", "Now, here is a summary:".$langInstr
+Use natural spoken transitions like "First question:", "Second question:", "The answer is:", "Now, here is a summary:".$toneInstr$langInstr
 ''';
     }
   }
