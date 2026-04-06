@@ -5,7 +5,10 @@ import '../providers/reader_provider.dart';
 import '../providers/model_provider.dart';
 
 class VoiceInputButton extends StatelessWidget {
-  const VoiceInputButton({super.key});
+  /// When [compact] is true renders as a 40×40 icon button without glow,
+  /// suitable for the player control bar.
+  final bool compact;
+  const VoiceInputButton({super.key, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -15,34 +18,53 @@ class VoiceInputButton extends StatelessWidget {
     final isListening = reader.state == ReaderState.listening;
     final isProcessing = model.isLoading;
 
+    final double size = compact ? 40 : 72;
+    final double iconSize = compact ? 20 : 32;
+
     return GestureDetector(
       onTap: isProcessing ? null : () => _handleVoiceInput(context),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        width: 72,
-        height: 72,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isListening
-              ? Colors.red
+              ? Colors.red.withValues(alpha: compact ? 0.15 : 1.0)
               : isProcessing
-                  ? Colors.grey
-                  : Theme.of(context).colorScheme.primary,
-          boxShadow: [
-            BoxShadow(
-              color: (isListening ? Colors.red : Colors.deepPurple)
-                  .withOpacity(0.4),
-              blurRadius: isListening ? 20 : 8,
-              spreadRadius: isListening ? 4 : 0,
-            )
-          ],
+                  ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)
+                  : compact
+                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)
+                      : Theme.of(context).colorScheme.primary,
+          boxShadow: compact
+              ? null
+              : [
+                  BoxShadow(
+                    color: (isListening ? Colors.red : Colors.deepPurple)
+                        .withOpacity(0.4),
+                    blurRadius: isListening ? 20 : 8,
+                    spreadRadius: isListening ? 4 : 0,
+                  )
+                ],
         ),
         child: Center(
           child: isListening
-              ? const SpinKitPulse(color: Colors.white, size: 32)
+              ? compact
+                  ? Icon(Icons.mic, color: Colors.red, size: iconSize)
+                  : SpinKitPulse(color: Colors.white, size: iconSize)
               : isProcessing
-                  ? const SpinKitThreeBounce(color: Colors.white, size: 16)
-                  : const Icon(Icons.mic, color: Colors.white, size: 32),
+                  ? SpinKitThreeBounce(
+                      color: compact
+                          ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)
+                          : Colors.white,
+                      size: compact ? 12 : 16)
+                  : Icon(
+                      Icons.mic,
+                      color: compact
+                          ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
+                          : Colors.white,
+                      size: iconSize,
+                    ),
         ),
       ),
     );

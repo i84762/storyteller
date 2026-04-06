@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
@@ -39,18 +40,32 @@ class GeminiService {
       }
     });
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: body,
-    );
+    // Retry loop: up to 3 attempts with backoff on rate-limit (429).
+    for (int attempt = 0; attempt < 3; attempt++) {
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 30));
 
-    if (response.statusCode != 200) {
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return json['candidates'][0]['content']['parts'][0]['text'] as String;
+      }
+
+      if (response.statusCode == 429) {
+        // Rate limited — wait progressively longer before retrying.
+        final waitSeconds = [15, 45][attempt.clamp(0, 1)];
+        await Future.delayed(Duration(seconds: waitSeconds));
+        continue;
+      }
+
       throw Exception('Gemini API error: ${response.statusCode} ${response.body}');
     }
 
-    final json = jsonDecode(response.body);
-    return json['candidates'][0]['content']['parts'][0]['text'] as String;
+    throw Exception('Gemini API: exceeded retry limit due to rate limiting');
   }
 
   /// Estimate token count (rough: 1 token ≈ 4 chars)

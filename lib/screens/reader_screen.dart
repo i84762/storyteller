@@ -1213,107 +1213,113 @@ class _BottomPlayer extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-            // ── Single controls row: mic | prev | play | next | speed ─
+            // ── Row 1: main transport ─────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _NavButton(
+                  icon: Icons.skip_previous_rounded,
+                  tooltip: 'Previous page',
+                  enabled: reader.hasPdf && reader.currentPage > 0,
+                  onTap: reader.previousPage,
+                  cs: cs,
+                ),
+
+                const SizedBox(width: 24),
+
+                // Play / Pause
+                GestureDetector(
+                  onTap: reader.hasPdf
+                      ? () => isReading ? reader.pause() : reader.startReading()
+                      : null,
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: reader.hasPdf
+                          ? LinearGradient(
+                              colors: [
+                                cs.primary,
+                                Color.alphaBlend(
+                                    Colors.white.withValues(alpha: 0.15),
+                                    cs.primary)
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: reader.hasPdf
+                          ? null
+                          : cs.onSurface.withValues(alpha: 0.1),
+                      boxShadow: reader.hasPdf
+                          ? [
+                              BoxShadow(
+                                color: cs.primary.withValues(alpha: 0.3),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      isReading
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: reader.hasPdf
+                          ? cs.onPrimary
+                          : cs.onSurface.withValues(alpha: 0.3),
+                      size: 32,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 24),
+
+                _NavButton(
+                  icon: Icons.skip_next_rounded,
+                  tooltip: 'Next page',
+                  enabled: reader.hasPdf &&
+                      reader.currentPage < reader.totalPages - 1,
+                  onTap: reader.nextPage,
+                  cs: cs,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            // ── Row 2: mic (left) + speed (right) ────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Mic — voice input
-                  const VoiceInputButton(),
-
+                  const VoiceInputButton(compact: true),
                   const Spacer(),
-
-                  // Previous page
-                  _NavButton(
-                    icon: Icons.skip_previous_rounded,
-                    tooltip: 'Previous page',
-                    enabled: reader.hasPdf && reader.currentPage > 0,
-                    onTap: reader.previousPage,
-                    cs: cs,
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  // Play / Pause — primary hero button
-                  GestureDetector(
-                    onTap: reader.hasPdf
-                        ? () => isReading ? reader.pause() : reader.startReading()
-                        : null,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: reader.hasPdf
-                            ? LinearGradient(
-                                colors: [cs.primary, Color.alphaBlend(Colors.white.withValues(alpha: 0.15), cs.primary)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              )
-                            : null,
-                        color: reader.hasPdf
-                            ? null
-                            : cs.onSurface.withValues(alpha: 0.1),
-                        boxShadow: reader.hasPdf
-                            ? [
-                                BoxShadow(
-                                  color: cs.primary.withValues(alpha: 0.3),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Icon(
-                        isReading
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: reader.hasPdf
-                            ? cs.onPrimary
-                            : cs.onSurface.withValues(alpha: 0.3),
-                        size: 32,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  // Next page
-                  _NavButton(
-                    icon: Icons.skip_next_rounded,
-                    tooltip: 'Next page',
-                    enabled: reader.hasPdf &&
-                        reader.currentPage < reader.totalPages - 1,
-                    onTap: reader.nextPage,
-                    cs: cs,
-                  ),
-
-                  const Spacer(),
-
-                  // Speed controls
                   _SpeedButton(
                     icon: Icons.remove_rounded,
                     enabled: !atMin,
                     onTap: reader.slowDown,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   SizedBox(
-                    width: 36,
+                    width: 38,
                     child: Text(
                       '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: cs.onSurface.withValues(alpha: 0.6),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0.4,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   _SpeedButton(
                     icon: Icons.add_rounded,
                     enabled: !atMax,

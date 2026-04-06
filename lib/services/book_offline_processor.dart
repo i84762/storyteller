@@ -84,6 +84,11 @@ class BookOfflineProcessor {
 
       config.processedPages = page + 1;
       onProgress(page + 1, config.processedImages, total);
+
+      // ~4s between pages ≈ 15 req/min — stays within Gemini free tier RPM limit.
+      if (!_cancelled) {
+        await Future.delayed(const Duration(milliseconds: 4000));
+      }
     }
 
     if (_cancelled) {
