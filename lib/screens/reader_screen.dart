@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 import '../providers/reader_provider.dart';
 import '../widgets/voice_input_button.dart';
 import '../widgets/usage_indicator.dart';
@@ -170,6 +171,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
             onPressed: () => Navigator.pushNamed(context, '/settings'),
             visualDensity: VisualDensity.compact,
           ),
+          if (reader.hasPdf && !reader.isProcessingOffline)
+            IconButton(
+              icon: const Icon(Icons.download_for_offline_outlined, size: 20),
+              tooltip: 'Process for Offline',
+              onPressed: () => _showOfflineDialog(context, reader),
+              visualDensity: VisualDensity.compact,
+            ),
         ],
       ),
       body: Column(
@@ -208,6 +216,48 @@ class _ReaderScreenState extends State<ReaderScreen> {
               );
             }),
 
+          // Offline-processing progress banner
+          if (reader.isProcessingOffline)
+            Builder(builder: (ctx) {
+              final done = reader.offlineProgress;
+              final total = reader.offlineTotal;
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: Colors.orange.withValues(alpha: 0.15),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.orange,
+                        value: total > 0 ? done / total : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Processing offline: $done / $total pages',
+                        style: const TextStyle(
+                            color: Colors.orange, fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: reader.cancelOfflineProcessing,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: Colors.orange,
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
           // PDF text display
           Expanded(
             child: reader.hasPdf
@@ -220,7 +270,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // source PDF while still listening to the AI-processed audio.
           if (reader.hasPdf &&
               reader.listeningMode.isAiPowered &&
-              reader.listeningMode != ListeningMode.pictorial &&
+              !reader.pictorialEnabled &&
               reader.wordSpans.isNotEmpty)
             _OriginalToggleBar(
               showOriginal: _showOriginal,
@@ -242,8 +292,92 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  Future<void> _showOfflineDialog(
+      BuildContext context, ReaderProvider reader) async {
+    ListeningMode selectedMode = reader.listeningMode;
+    ReadingTone selectedTone = reader.tone;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) {
+            final cs = Theme.of(ctx).colorScheme;
+            return AlertDialog(
+              backgroundColor: cs.surface,
+              title: const Text('Process for Offline'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pre-process all pages so the book reads offline without live AI.',
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                        fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  _ConfigRow(
+                    label: 'Mode',
+                    child: DropdownButton<ListeningMode>(
+                      value: selectedMode,
+                      isDense: true,
+                      onChanged: (v) {
+                        if (v != null) setLocalState(() => selectedMode = v);
+                      },
+                      items: ListeningMode.values
+                          .map((m) => DropdownMenuItem(
+                                value: m,
+                                child: Text(m.displayName,
+                                    style: const TextStyle(fontSize: 13)),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _ConfigRow(
+                    label: 'Tone',
+                    child: DropdownButton<ReadingTone>(
+                      value: selectedTone,
+                      isDense: true,
+                      onChanged: (v) {
+                        if (v != null) setLocalState(() => selectedTone = v);
+                      },
+                      items: ReadingTone.values
+                          .map((t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(
+                                    '${t.emoji} ${t.displayName}',
+                                    style: const TextStyle(fontSize: 13)),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    reader.processForOffline(
+                        mode: selectedMode, tone: selectedTone);
+                  },
+                  child: const Text('Start'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildTextView(ReaderProvider reader) {
-    if (reader.listeningMode == ListeningMode.pictorial) {
+    if (reader.pictorialEnabled) {
       return _PictorialView(
         key: ValueKey('pic_${reader.currentPage}'),
         image: reader.currentPageImage,
@@ -277,6 +411,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
         : (reader.displayText.isEmpty ? reader.currentPageText : reader.displayText);
 
     return _PdfTextView(text: text, isReading: isReading);
+  }
+}
+
+class _ConfigRow extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _ConfigRow({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 44,
+          child: Text(label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: child),
+      ],
+    );
   }
 }
 

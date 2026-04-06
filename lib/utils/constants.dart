@@ -174,10 +174,6 @@ Then say "Now, here is a summary:" followed by a 2 to 3 sentence summary of the 
 Format for audio only — no bullet points, no numbering, no markdown symbols.
 Use natural spoken transitions like "First question:", "Second question:", "The answer is:", "Now, here is a summary:".$toneInstr$langInstr
 ''';
-
-      case ListeningMode.pictorial:
-        // Pictorial mode uses raw text for TTS — no AI text transformation.
-        return '';
     }
   }
 

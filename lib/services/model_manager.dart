@@ -137,24 +137,22 @@ class ModelManager {
     }
   }
 
-  /// Generates an image from [prompt] using the appropriate backend.
+  /// Generates an image from [prompt].
+  /// Always tries Pollinations.ai first (free, no key).
+  /// Falls back to DALL-E 3 (BYOK OpenAI) or Gemini Imagen (BYOK Gemini).
   Future<Uint8List?> generateImage(String prompt) async {
-    try {
-      switch (_currentTier) {
-        case SubscriptionTier.byok:
-          if (_byokProvider == AIProvider.openAICloud) {
-            return ImageGenerationService.generateOpenAI(
-                _byokApiKey!, prompt);
-          }
-          return ImageGenerationService.generateGemini(
-              _byokApiKey ?? AppConstants.devGeminiApiKey, prompt);
-        default:
-          return ImageGenerationService.generateGemini(
-              AppConstants.devGeminiApiKey, prompt);
+    // Pollinations is always available as free baseline.
+    final free = await ImageGenerationService.generatePollinations(prompt);
+    if (free != null) return free;
+
+    // Premium fallbacks if user has a BYOK key.
+    if (_currentTier == SubscriptionTier.byok && _byokApiKey != null) {
+      if (_byokProvider == AIProvider.openAICloud) {
+        return ImageGenerationService.generateOpenAI(_byokApiKey!, prompt);
       }
-    } catch (_) {
-      return null;
+      return ImageGenerationService.generateGemini(_byokApiKey!, prompt);
     }
+    return null;
   }
 
   // ─── Core routing logic ───────────────────────────────────────────────────

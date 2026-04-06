@@ -24,9 +24,6 @@ enum ListeningMode {
 
   /// AI pre-tests the listener with questions, then summarises the page.
   quiz,
-
-  /// AI illustrates each page while you listen.
-  pictorial,
 }
 
 extension ListeningModeX on ListeningMode {
@@ -48,8 +45,6 @@ extension ListeningModeX on ListeningMode {
         return 'Focus Mode';
       case ListeningMode.quiz:
         return 'Quiz Mode';
-      case ListeningMode.pictorial:
-        return 'Pictorial';
     }
   }
 
@@ -71,8 +66,6 @@ extension ListeningModeX on ListeningMode {
         return 'AI filters each page to only what\'s relevant to your chosen topic.';
       case ListeningMode.quiz:
         return 'AI asks study questions about each page before summarising it.';
-      case ListeningMode.pictorial:
-        return 'AI illustrates each page while you listen.';
     }
   }
 
@@ -94,8 +87,6 @@ extension ListeningModeX on ListeningMode {
         return Icons.center_focus_strong;
       case ListeningMode.quiz:
         return Icons.quiz;
-      case ListeningMode.pictorial:
-        return Icons.auto_awesome;
     }
   }
 
@@ -117,8 +108,6 @@ extension ListeningModeX on ListeningMode {
         return Colors.green;
       case ListeningMode.quiz:
         return Colors.red;
-      case ListeningMode.pictorial:
-        return Colors.deepOrange;
     }
   }
 
@@ -138,7 +127,6 @@ extension ListeningModeX on ListeningMode {
       case ListeningMode.storyteller: return 'Story';
       case ListeningMode.focus:     return 'Focus';
       case ListeningMode.quiz:      return 'Quiz';
-      case ListeningMode.pictorial: return 'Pictorial';
     }
   }
 

@@ -91,6 +91,14 @@ class ListeningModePicker extends StatelessWidget {
                 const SizedBox(height: 4),
                 Divider(color: cs.onSurface.withValues(alpha: 0.1), height: 1),
                 const SizedBox(height: 4),
+                // ── Pictorial toggle ──────────────────────────────────────
+                _PictorialToggle(
+                  enabled: reader.pictorialEnabled,
+                  onChanged: (v) => reader.setPictorialEnabled(v),
+                ),
+                const SizedBox(height: 4),
+                Divider(color: cs.onSurface.withValues(alpha: 0.1), height: 1),
+                const SizedBox(height: 4),
                 ...ListeningMode.values.map((mode) {
                   return _ModeCard(
                     mode: mode,
@@ -385,6 +393,72 @@ class _ToneSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PictorialToggle extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _PictorialToggle({required this.enabled, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: Colors.deepOrange
+                .withValues(alpha: enabled ? 0.15 : 0.06),
+            child: Icon(
+              Icons.auto_awesome,
+              color: enabled
+                  ? Colors.deepOrange
+                  : cs.onSurface.withValues(alpha: 0.4),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Pictorial',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontWeight:
+                            enabled ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _AiBadge(label: 'AI'),
+                  ],
+                ),
+                Text(
+                  'AI illustrates each page while you listen.',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.54),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: onChanged,
+            activeColor: Colors.deepOrange,
+          ),
+        ],
+      ),
     );
   }
 }

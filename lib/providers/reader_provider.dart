@@ -4,8 +4,12 @@ import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/book_record.dart';
 import '../models/listening_mode.dart';
+import '../models/offline_config.dart';
 import '../models/reading_tone.dart';
+import '../services/book_offline_processor.dart';
 import '../services/library_service.dart';
+import '../services/notification_service.dart';
+import '../services/offline_library_service.dart';
 import '../services/page_cache_service.dart';
 import '../services/pdf_service.dart';
 import '../services/audio_handler.dart';
@@ -59,6 +63,32 @@ class ReaderProvider extends ChangeNotifier {
   bool _isGeneratingImage = false;
   Uint8List? get currentPageImage => _currentPageImage;
   bool get isGeneratingImage => _isGeneratingImage;
+
+  bool _pictorialEnabled = false;
+  bool get pictorialEnabled => _pictorialEnabled;
+
+  void setPictorialEnabled(bool val) {
+    _pictorialEnabled = val;
+    if (!val) {
+      _imageCache.clear();
+      _currentPageImage = null;
+    }
+    notifyListeners();
+  }
+
+  // ── Offline processing state ──────────────────────────────────────────────
+  final OfflineLibraryService _offlineLibrary = OfflineLibraryService();
+  BookOfflineProcessor? _offlineProcessor;
+  bool _isProcessingOffline = false;
+  int _offlineProgress = 0;
+  int _offlineTotal = 0;
+
+  bool get isProcessingOffline => _isProcessingOffline;
+  int get offlineProgress => _offlineProgress;
+  int get offlineTotal => _offlineTotal;
+  List<OfflineConfig> get offlineBooks => _offlineLibrary.configs;
+  List<OfflineConfig> offlineConfigsForBook(String path) =>
+      _offlineLibrary.forBook(path);
 
   ListeningMode get listeningMode => _listeningMode;
   String? get focusTopic => _focusTopic;
@@ -194,6 +224,7 @@ class ReaderProvider extends ChangeNotifier {
   void removeBook(String path) {
     _libraryService.remove(path);
     _pageCache.deleteForBook(path);
+    _offlineLibrary.remove(path).ignore();
     notifyListeners();
   }
 
@@ -215,6 +246,9 @@ class ReaderProvider extends ChangeNotifier {
     await _audioHandler.init();
     await _sttService.init();
     await _pageCache.init();
+    await _offlineLibrary.init();
+    await NotificationService.init();
+    await NotificationService.requestPermission();
     final prefs = await SharedPreferences.getInstance();
     final toneName = prefs.getString('reading_tone');
     if (toneName != null) {
@@ -317,7 +351,7 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page is ready — start prefetching ahead in the background.
     _schedulePrefetch(_currentPage + 1);
-    if (_listeningMode == ListeningMode.pictorial) {
+    if (_pictorialEnabled) {
       _triggerImageGeneration(_currentPage);
     }
     await _audioHandler.speakText(
@@ -444,7 +478,7 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page ready — prefetch ahead.
     _schedulePrefetch(index + 1);
-    if (_listeningMode == ListeningMode.pictorial) {
+    if (_pictorialEnabled) {
       _triggerImageGeneration(index);
     }
     await _audioHandler.speakText(
@@ -488,9 +522,6 @@ class ReaderProvider extends ChangeNotifier {
   /// Returns AI-transformed text for [index]; hits cache first.
   /// Falls back to raw text if AI is unavailable; sets [_aiError] on failure.
   Future<String> _getTextForMode(int index, String rawText) async {
-    // Pictorial mode: TTS uses raw text; images are generated separately.
-    if (_listeningMode == ListeningMode.pictorial) return rawText;
-
     final isWordToWordNoTranslation =
         _listeningMode == ListeningMode.wordToWord && _targetLanguage == null;
     if (isWordToWordNoTranslation || rawText.trim().isEmpty) return rawText;
@@ -573,8 +604,7 @@ class ReaderProvider extends ChangeNotifier {
 
   /// Whether the current mode requires AI processing.
   bool get _needsAiProcessing =>
-      !(_listeningMode == ListeningMode.wordToWord && _targetLanguage == null) &&
-      _listeningMode != ListeningMode.pictorial;
+      !(_listeningMode == ListeningMode.wordToWord && _targetLanguage == null);
 
   /// Schedules a silent background prefetch for [page] if it isn't cached yet
   /// and is within the lookahead window. Safe to call multiple times.
@@ -673,9 +703,12 @@ class ReaderProvider extends ChangeNotifier {
         return;
       }
 
+      // Use transformed text if available for richer image context.
+      final contextText = _transformedCache[page] ?? rawText;
+
       // Step 1: generate a visual description prompt using text AI.
       final imagePrompt = await modelProvider!.generateImagePrompt(
-          rawText, _listeningMode, _tone);
+          contextText, _listeningMode, _tone);
       if (imagePrompt == null || imagePrompt.isEmpty) {
         _imageCache[page] = null;
         return;
@@ -725,6 +758,69 @@ class ReaderProvider extends ChangeNotifier {
 
   String get _bookTitle =>
       _pdfPath?.split(RegExp(r'[/\\]')).last ?? 'StoryTeller';
+
+  // ── Offline processing ────────────────────────────────────────────────────
+
+  Future<void> processForOffline({
+    required ListeningMode mode,
+    required ReadingTone tone,
+  }) async {
+    if (modelProvider == null || _pdfPath == null) return;
+    _isProcessingOffline = true;
+    _offlineProgress = 0;
+    _offlineTotal = _pdfService.totalPages;
+    notifyListeners();
+
+    final config = OfflineConfig(
+      bookPath: _pdfPath!,
+      mode: mode,
+      tone: tone,
+      aiTier: modelProvider!.currentTierName,
+      totalPages: _pdfService.totalPages,
+    );
+
+    _offlineProcessor = BookOfflineProcessor(
+      config: config,
+      modelProvider: modelProvider!,
+      pageCache: _pageCache,
+    );
+
+    bool completed = false;
+    await _offlineProcessor!.process(
+      onProgress: (done, total) {
+        _offlineProgress = done;
+        _offlineTotal = total;
+        notifyListeners();
+        NotificationService.showProgress(
+          title: 'Processing "$_bookTitle"',
+          progress: done,
+          total: total,
+        ).ignore();
+      },
+      onComplete: () {
+        completed = true;
+      },
+    );
+
+    if (completed) {
+      await _offlineLibrary.save(config);
+      NotificationService.showComplete(_bookTitle).ignore();
+    } else {
+      await NotificationService.cancel();
+    }
+    _isProcessingOffline = false;
+    _offlineProcessor = null;
+    notifyListeners();
+  }
+
+  void cancelOfflineProcessing() {
+    _offlineProcessor?.cancel();
+    _isProcessingOffline = false;
+    _offlineProgress = 0;
+    _offlineProcessor = null;
+    NotificationService.cancel().ignore();
+    notifyListeners();
+  }
 
   @override
   void dispose() {

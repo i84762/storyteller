@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/book_record.dart';
+import '../models/listening_mode.dart';
+import '../models/offline_config.dart';
+import '../models/reading_tone.dart';
 import '../models/subscription_tier.dart';
 import '../providers/reader_provider.dart';
 import '../providers/model_provider.dart';
@@ -159,6 +162,52 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
 
+              // ── Offline Books ─────────────────────────────────────────────
+              if (reader.offlineBooks.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
+                    child: Text(
+                      'OFFLINE READY',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.45),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final cfg = reader.offlineBooks[i];
+                      final rec = reader.recentBooks.firstWhere(
+                        (b) => b.path == cfg.bookPath,
+                        orElse: () => BookRecord(
+                          path: cfg.bookPath,
+                          title: cfg.bookTitle,
+                          lastPage: 0,
+                          totalPages: cfg.totalPages,
+                          lastOpened:
+                              cfg.processedAt ?? DateTime.now(),
+                        ),
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        child: _OfflineBookTile(
+                          config: cfg,
+                          onTap: () =>
+                              _loadAndNavigate(ctx, reader, rec),
+                        ),
+                      );
+                    },
+                    childCount: reader.offlineBooks.length,
+                  ),
+                ),
+              ],
+
               // Bottom padding
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
@@ -223,6 +272,88 @@ class HomeScreen extends StatelessWidget {
       );
       reader.clearError();
     }
+  }
+}
+
+// ── Offline book tile ─────────────────────────────────────────────────────────
+
+class _OfflineBookTile extends StatelessWidget {
+  final OfflineConfig config;
+  final VoidCallback onTap;
+
+  const _OfflineBookTile({required this.config, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.offline_pin, color: Colors.green, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    config.bookTitle,
+                    style: TextStyle(
+                      color: cs.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${config.mode.displayName} · ${config.tone.emoji} ${config.tone.displayName}',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (!config.isComplete)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: LinearProgressIndicator(
+                        value: config.progress,
+                        backgroundColor:
+                            cs.outline.withValues(alpha: 0.1),
+                        color: cs.primary,
+                        minHeight: 2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (config.processedAt != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                _fmtDate(config.processedAt!),
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.35),
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${d.day}/${d.month}/${d.year}';
   }
 }
 
