@@ -17,6 +17,28 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   String? _lastShownError;
 
+  /// When true, shows the raw PDF text instead of the AI-processed version.
+  bool _showOriginal = false;
+
+  /// Track page/mode so we can reset the toggle when they change.
+  int _toggleResetPage = -1;
+  ListeningMode? _toggleResetMode;
+
+  /// Resets the original-view toggle whenever the page or mode changes.
+  void _maybeResetToggle(ReaderProvider reader) {
+    if (reader.currentPage != _toggleResetPage ||
+        reader.listeningMode != _toggleResetMode) {
+      _toggleResetPage = reader.currentPage;
+      _toggleResetMode = reader.listeningMode;
+      if (_showOriginal) {
+        // Use addPostFrameCallback to avoid setState during build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _showOriginal = false);
+        });
+      }
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -52,8 +74,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final reader = context.watch<ReaderProvider>();
-
-    // Re-check for new errors after every rebuild.
+    _maybeResetToggle(reader);
     final error = reader.aiError;
     if (error != null && error != _lastShownError) {
       _lastShownError = error;
@@ -193,6 +214,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 : const _EmptyState(),
           ),
 
+          // ── Original / AI toggle ─────────────────────────────────────────
+          // Shown only when AI text is ready — lets the user peek at the
+          // source PDF while still listening to the AI-processed audio.
+          if (reader.hasPdf &&
+              reader.listeningMode.isAiPowered &&
+              reader.wordSpans.isNotEmpty)
+            _OriginalToggleBar(
+              showOriginal: _showOriginal,
+              onToggle: (v) => setState(() => _showOriginal = v),
+            ),
+
           // Conversation bubble
           if (reader.lastUserInput != null ||
               reader.lastAssistantResponse != null)
@@ -211,9 +243,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildTextView(ReaderProvider reader) {
     final isReading = reader.state == ReaderState.reading;
 
-    // Use the interactive word-highlight view whenever word spans are
-    // available — this works for every AI mode, not just word-to-word.
-    if (reader.wordSpans.isNotEmpty) {
+    // Only highlight words when the screen is showing the same text that
+    // TTS is speaking. If the user has switched to the original PDF view,
+    // the character offsets in wordSpans don't match the raw text, so
+    // highlighting is suppressed to avoid misleading jumps.
+    final canHighlight = reader.wordSpans.isNotEmpty && !_showOriginal;
+
+    if (canHighlight) {
       return _WordHighlightView(
         key: ValueKey(reader.currentPage),
         fullText: reader.spokenText,
@@ -223,12 +259,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
     }
 
-    return _PdfTextView(
-      text: reader.displayText.isEmpty
-          ? reader.currentPageText
-          : reader.displayText,
-      isReading: isReading,
-    );
+    final text = _showOriginal
+        ? reader.currentPageText
+        : (reader.displayText.isEmpty ? reader.currentPageText : reader.displayText);
+
+    return _PdfTextView(text: text, isReading: isReading);
   }
 }
 
@@ -395,6 +430,108 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
 }
 
 // ── Supporting widgets ────────────────────────────────────────────────────────
+
+/// Compact toggle bar that lets the user flip between AI-processed text and
+/// the original PDF source. Only rendered when AI text is ready.
+class _OriginalToggleBar extends StatelessWidget {
+  final bool showOriginal;
+  final ValueChanged<bool> onToggle;
+
+  const _OriginalToggleBar({
+    required this.showOriginal,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+      child: Row(
+        children: [
+          Icon(Icons.swap_horiz,
+              size: 14, color: cs.onSurface.withValues(alpha: 0.5)),
+          const SizedBox(width: 8),
+          Text(
+            'Viewing:',
+            style: TextStyle(
+              fontSize: 11,
+              color: cs.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _ToggleChip(
+            label: '✦ AI Text',
+            selected: !showOriginal,
+            onTap: () => onToggle(false),
+          ),
+          const SizedBox(width: 6),
+          _ToggleChip(
+            label: '📄 Original',
+            selected: showOriginal,
+            onTap: () => onToggle(true),
+          ),
+          if (showOriginal) ...[
+            const SizedBox(width: 8),
+            Icon(Icons.highlight_off,
+                size: 12, color: cs.onSurface.withValues(alpha: 0.35)),
+            const SizedBox(width: 3),
+            Text(
+              'Highlighting paused',
+              style: TextStyle(
+                  fontSize: 10,
+                  color: cs.onSurface.withValues(alpha: 0.35),
+                  fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ToggleChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: selected
+              ? cs.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? cs.primary.withValues(alpha: 0.5)
+                : cs.onSurface.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected
+                ? cs.primary
+                : cs.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _PdfTextView extends StatelessWidget {
   final String text;

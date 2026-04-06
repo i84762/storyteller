@@ -3,16 +3,16 @@ import 'package:path/path.dart' as p;
 
 /// Persists AI-processed page text to a local SQLite database.
 ///
-/// Cache key: (bookPath, pageIndex, mode, language, aiTier)
-/// This means switching any of those parameters produces a fresh AI call
-/// the first time and is then cached under the new key.
+/// Cache key: (bookPath, pageIndex, mode, language, aiTier, tone)
+/// Switching any of those parameters produces a fresh AI call the first time
+/// and is then cached under the new key.
 ///
 /// Entries survive app restarts and are only removed when the user removes
 /// a book from the library (call [deleteForBook]) or explicitly clears all
 /// ([deleteAll]).
 class PageCacheService {
   static const _dbName = 'page_cache.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2; // bumped: added tone column
   static const _table = 'page_cache';
 
   /// Sentinel value stored in the [language] column when no translation
@@ -34,12 +34,33 @@ class PageCacheService {
             mode       TEXT    NOT NULL,
             language   TEXT    NOT NULL,
             ai_tier    TEXT    NOT NULL,
+            tone       TEXT    NOT NULL DEFAULT '',
             content    TEXT    NOT NULL,
             created_at INTEGER NOT NULL,
-            PRIMARY KEY (book_path, page_index, mode, language, ai_tier)
+            PRIMARY KEY (book_path, page_index, mode, language, ai_tier, tone)
           )
         ''');
-        // Fast deletions when a book is removed from the library.
+        await db.execute(
+          'CREATE INDEX idx_book_path ON $_table (book_path)',
+        );
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // v1→v2: added tone column; easiest migration is drop + recreate
+        // (it's a cache — data loss is acceptable).
+        await db.execute('DROP TABLE IF EXISTS $_table');
+        await db.execute('''
+          CREATE TABLE $_table (
+            book_path  TEXT    NOT NULL,
+            page_index INTEGER NOT NULL,
+            mode       TEXT    NOT NULL,
+            language   TEXT    NOT NULL,
+            ai_tier    TEXT    NOT NULL,
+            tone       TEXT    NOT NULL DEFAULT '',
+            content    TEXT    NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (book_path, page_index, mode, language, ai_tier, tone)
+          )
+        ''');
         await db.execute(
           'CREATE INDEX idx_book_path ON $_table (book_path)',
         );
