@@ -1,15 +1,85 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/listening_mode.dart';
 import '../providers/reader_provider.dart';
 import '../widgets/voice_input_button.dart';
 import '../widgets/usage_indicator.dart';
+import '../widgets/listening_mode_picker.dart';
 
-class ReaderScreen extends StatelessWidget {
+class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
+
+  @override
+  State<ReaderScreen> createState() => _ReaderScreenState();
+}
+
+class _ReaderScreenState extends State<ReaderScreen> {
+  String? _lastShownError;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Show snackbar whenever a new AI error arrives.
+    final error = context.read<ReaderProvider>().aiError;
+    if (error != null && error != _lastShownError) {
+      _lastShownError = error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<ReaderProvider>().clearAiError();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(error, style: const TextStyle(fontSize: 13))),
+              ],
+            ),
+            backgroundColor: const Color(0xFF16213E),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => Navigator.pushNamed(context, '/settings'),
+            ),
+          ),
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final reader = context.watch<ReaderProvider>();
+
+    // Re-check for new errors after every rebuild.
+    final error = reader.aiError;
+    if (error != null && error != _lastShownError) {
+      _lastShownError = error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        reader.clearAiError();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(error, style: const TextStyle(fontSize: 13))),
+              ],
+            ),
+            backgroundColor: const Color(0xFF16213E),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => Navigator.pushNamed(context, '/settings'),
+            ),
+          ),
+        );
+      });
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
@@ -47,7 +117,69 @@ class ReaderScreen extends StatelessWidget {
                     style: const TextStyle(
                         color: Colors.white70, fontSize: 12),
                   ),
+                  // Mode chip — tap to change
+                  GestureDetector(
+                    onTap: () => ListeningModePicker.show(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: reader.listeningMode.color
+                            .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: reader.listeningMode.color
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(reader.listeningMode.icon,
+                              size: 12,
+                              color: reader.listeningMode.color),
+                          const SizedBox(width: 4),
+                          Text(
+                            reader.listeningMode.displayName,
+                            style: TextStyle(
+                              color: reader.listeningMode.color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   _StateChip(reader.state),
+                ],
+              ),
+            ),
+
+          // AI-processing indicator
+          if (reader.isTranslating)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: Colors.deepPurple.withValues(alpha: 0.25),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.deepPurpleAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    reader.listeningMode == ListeningMode.wordToWord
+                        ? 'Translating…'
+                        : 'Processing with AI…',
+                    style: const TextStyle(
+                        color: Colors.deepPurpleAccent, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -55,10 +187,7 @@ class ReaderScreen extends StatelessWidget {
           // PDF text display
           Expanded(
             child: reader.hasPdf
-                ? _PdfTextView(
-                    text: reader.currentPageText,
-                    isReading: reader.state == ReaderState.reading,
-                  )
+                ? _buildTextView(reader)
                 : const _EmptyState(),
           ),
 
@@ -70,15 +199,183 @@ class ReaderScreen extends StatelessWidget {
               assistantText: reader.lastAssistantResponse,
             ),
 
-          // Controls
-          _ControlBar(reader: reader),
+          // Speed control bar — only shown when a PDF is loaded
+          if (reader.hasPdf) _SpeedBar(reader: reader),
 
-          const SizedBox(height: 16),
+          // Controls — SafeArea keeps them above the system navigation bar
+          SafeArea(
+            top: false,
+            child: _ControlBar(reader: reader),
+          ),
         ],
       ),
     );
   }
+
+  Widget _buildTextView(ReaderProvider reader) {
+    final isWordToWord = reader.listeningMode == ListeningMode.wordToWord;
+    final isReading = reader.state == ReaderState.reading;
+
+    // In word-to-word mode with word spans available, use the interactive
+    // word-highlight view. Fall back to plain text view otherwise.
+    if (isWordToWord && reader.wordSpans.isNotEmpty) {
+      return _WordHighlightView(
+        key: ValueKey(reader.currentPage),
+        fullText: reader.spokenText,
+        wordSpans: reader.wordSpans,
+        currentWordIndex: reader.currentWordIndex,
+        onWordTap: reader.jumpToWord,
+      );
+    }
+
+    return _PdfTextView(
+      text: reader.displayText.isEmpty
+          ? reader.currentPageText
+          : reader.displayText,
+      isReading: isReading,
+    );
+  }
 }
+
+// ── Word highlight view ───────────────────────────────────────────────────────
+
+class _WordHighlightView extends StatefulWidget {
+  final String fullText;
+  final List<WordSpan> wordSpans;
+  final int currentWordIndex;
+  final void Function(int) onWordTap;
+
+  const _WordHighlightView({
+    super.key,
+    required this.fullText,
+    required this.wordSpans,
+    required this.currentWordIndex,
+    required this.onWordTap,
+  });
+
+  @override
+  State<_WordHighlightView> createState() => _WordHighlightViewState();
+}
+
+class _WordHighlightViewState extends State<_WordHighlightView> {
+  final ScrollController _scroll = ScrollController();
+  List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _buildRecognizers();
+  }
+
+  @override
+  void didUpdateWidget(_WordHighlightView old) {
+    super.didUpdateWidget(old);
+    if (widget.fullText != old.fullText) {
+      _disposeRecognizers();
+      _buildRecognizers();
+    }
+    if (widget.currentWordIndex != old.currentWordIndex &&
+        widget.currentWordIndex >= 0) {
+      _scrollToWord(widget.currentWordIndex);
+    }
+  }
+
+  void _buildRecognizers() {
+    _recognizers = List.generate(
+      widget.wordSpans.length,
+      (i) => TapGestureRecognizer()..onTap = () => widget.onWordTap(i),
+    );
+  }
+
+  void _disposeRecognizers() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+  }
+
+  void _scrollToWord(int idx) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients || widget.wordSpans.isEmpty) return;
+      final progress = idx / widget.wordSpans.length;
+      final target =
+          (_scroll.position.maxScrollExtent * progress).clamp(0.0, _scroll.position.maxScrollExtent);
+      _scroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.fullText;
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+
+    const normalStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 16,
+      height: 1.8,
+      fontFamily: 'Georgia',
+    );
+    const spaceStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 16,
+      height: 1.8,
+      fontFamily: 'Georgia',
+    );
+
+    for (int i = 0; i < widget.wordSpans.length; i++) {
+      final span = widget.wordSpans[i];
+
+      // Whitespace / punctuation before this word
+      if (span.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, span.start),
+          style: spaceStyle,
+        ));
+      }
+
+      final isHighlighted = i == widget.currentWordIndex;
+      spans.add(TextSpan(
+        text: span.text,
+        style: isHighlighted
+            ? const TextStyle(
+                color: Colors.black,
+                backgroundColor: Color(0xFFFFD54F), // amber highlight
+                fontSize: 16,
+                height: 1.8,
+                fontFamily: 'Georgia',
+                fontWeight: FontWeight.w600,
+              )
+            : normalStyle,
+        recognizer: _recognizers[i],
+      ));
+      lastEnd = span.end;
+    }
+
+    // Any trailing text after the last word
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd), style: spaceStyle));
+    }
+
+    return SingleChildScrollView(
+      controller: _scroll,
+      padding: const EdgeInsets.all(20),
+      child: RichText(text: TextSpan(children: spans)),
+    );
+  }
+}
+
+// ── Supporting widgets ────────────────────────────────────────────────────────
 
 class _StateChip extends StatelessWidget {
   final ReaderState state;
@@ -220,6 +517,82 @@ class _ConversationBubble extends StatelessWidget {
   }
 }
 
+class _SpeedBar extends StatelessWidget {
+  final ReaderProvider reader;
+  const _SpeedBar({required this.reader});
+
+  @override
+  Widget build(BuildContext context) {
+    final rate = reader.speechRate;
+    final atMin = rate <= 0.25;
+    final atMax = rate >= 3.0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.speed, size: 16, color: Colors.white38),
+          const SizedBox(width: 8),
+          _SpeedButton(
+            icon: Icons.remove,
+            enabled: !atMin,
+            onTap: reader.slowDown,
+          ),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 52,
+            child: Text(
+              '${rate.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}×',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          _SpeedButton(
+            icon: Icons.add,
+            enabled: !atMax,
+            onTap: reader.speedUp,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeedButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _SpeedButton({required this.icon, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.transparent,
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? Colors.white : Colors.white24,
+        ),
+      ),
+    );
+  }
+}
+
 class _ControlBar extends StatelessWidget {
   final ReaderProvider reader;
   const _ControlBar({required this.reader});
@@ -227,17 +600,14 @@ class _ControlBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(
+            tooltip: 'Previous page',
             icon: const Icon(Icons.skip_previous, color: Colors.white70),
             onPressed: reader.hasPdf ? reader.previousPage : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.fast_rewind, color: Colors.white70),
-            onPressed: reader.hasPdf ? reader.slowDown : null,
           ),
 
           // Main play/pause
@@ -264,10 +634,7 @@ class _ControlBar extends StatelessWidget {
           const VoiceInputButton(),
 
           IconButton(
-            icon: const Icon(Icons.fast_forward, color: Colors.white70),
-            onPressed: reader.hasPdf ? reader.speedUp : null,
-          ),
-          IconButton(
+            tooltip: 'Next page',
             icon: const Icon(Icons.skip_next, color: Colors.white70),
             onPressed: reader.hasPdf ? reader.nextPage : null,
           ),

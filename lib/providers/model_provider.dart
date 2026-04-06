@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/ai_source.dart';
+import '../models/listening_mode.dart';
 import '../models/subscription_tier.dart';
 import '../models/token_usage.dart';
 import '../services/model_manager.dart';
@@ -41,6 +42,24 @@ class ModelProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<String?> transformPageForMode(
+    String pageText,
+    ListeningMode mode, {
+    String? focusTopic,
+    String? targetLanguage,
+  }) async {
+    try {
+      return await modelManager.transformPageForMode(
+        pageText,
+        mode,
+        focusTopic: focusTopic,
+        targetLanguage: targetLanguage,
+      );
+    } catch (_) {
+      return null; // caller falls back to raw text
+    }
   }
 
   Future<String?> processUserInput({

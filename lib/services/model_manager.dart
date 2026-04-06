@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/ai_source.dart';
+import '../models/listening_mode.dart';
 import '../models/subscription_tier.dart';
 import '../models/intent_result.dart';
 import '../utils/constants.dart';
@@ -74,61 +75,101 @@ class ModelManager {
     return _generate(systemPrompt: systemPrompt, userPrompt: userMessage);
   }
 
+  /// Transforms raw page text according to the active [ListeningMode].
+  /// When [targetLanguage] is set, the AI responds in that language.
+  /// Falls back to [pageText] on error.
+  Future<String> transformPageForMode(
+    String pageText,
+    ListeningMode mode, {
+    String? focusTopic,
+    String? targetLanguage,
+  }) async {
+    if (mode == ListeningMode.wordToWord && targetLanguage == null) {
+      return pageText;
+    }
+    if (pageText.trim().isEmpty) return pageText;
+    final systemPrompt = AppConstants.listeningModePrompt(
+      mode,
+      focusTopic: focusTopic,
+      targetLanguage: targetLanguage,
+    );
+    if (systemPrompt.isEmpty) return pageText;
+    return _generate(
+      systemPrompt: systemPrompt,
+      userPrompt: pageText,
+      maxOutputTokens: 1024,
+    );
+  }
+
   // ─── Core routing logic ───────────────────────────────────────────────────
 
   Future<String> _generate({
     required String systemPrompt,
     required String userPrompt,
+    int maxOutputTokens = 512,
   }) async {
     switch (_currentTier) {
       case SubscriptionTier.free:
-        return _generateFree(systemPrompt, userPrompt);
+        return _generateFree(systemPrompt, userPrompt,
+            maxOutputTokens: maxOutputTokens);
       case SubscriptionTier.premium:
-        return _generatePremium(systemPrompt, userPrompt);
+        return _generatePremium(systemPrompt, userPrompt,
+            maxOutputTokens: maxOutputTokens);
       case SubscriptionTier.byok:
-        return _generateByok(systemPrompt, userPrompt);
+        return _generateByok(systemPrompt, userPrompt,
+            maxOutputTokens: maxOutputTokens);
       case SubscriptionTier.onDevice:
         return _generateOnDevice(systemPrompt, userPrompt);
     }
   }
 
-  Future<String> _generateFree(String system, String user) async {
+  Future<String> _generateFree(
+    String system,
+    String user, {
+    int maxOutputTokens = 512,
+  }) async {
     final limitReached = await _usageTracker.isFreeLimitReached();
-    if (limitReached) {
-      throw FreeLimitReachedException();
-    }
+    if (limitReached) throw FreeLimitReachedException();
     final service = GeminiService(apiKey: AppConstants.devGeminiApiKey);
-    final response = await service.generateContent(system, user);
+    final response = await service.generateContent(system, user,
+        maxOutputTokens: maxOutputTokens);
     await _usageTracker.recordRequest(
         tokensUsed: service.estimateTokens(user + response));
     return response;
   }
 
-  Future<String> _generatePremium(String system, String user) async {
+  Future<String> _generatePremium(
+    String system,
+    String user, {
+    int maxOutputTokens = 512,
+  }) async {
     final usage = await _usageTracker.getUsage();
-    if (usage.purchasedTokensRemaining <= 0) {
-      throw InsufficientTokensException();
-    }
+    if (usage.purchasedTokensRemaining <= 0) throw InsufficientTokensException();
     final service = GeminiService(
       apiKey: AppConstants.devGeminiApiKey,
       model: AppConstants.geminiProModel,
     );
-    final response = await service.generateContent(system, user);
+    final response = await service.generateContent(system, user,
+        maxOutputTokens: maxOutputTokens);
     final tokens = service.estimateTokens(user + response);
     await _usageTracker.deductPurchasedTokens(tokens);
     return response;
   }
 
-  Future<String> _generateByok(String system, String user) async {
-    if (_byokApiKey == null || _byokApiKey!.isEmpty) {
-      throw MissingApiKeyException();
-    }
+  Future<String> _generateByok(
+    String system,
+    String user, {
+    int maxOutputTokens = 512,
+  }) async {
+    if (_byokApiKey == null || _byokApiKey!.isEmpty) throw MissingApiKeyException();
     if (_byokProvider == AIProvider.openAICloud) {
       final service = OpenAIService(apiKey: _byokApiKey!);
-      return service.generateContent(system, user);
+      return service.generateContent(system, user,
+          maxOutputTokens: maxOutputTokens);
     } else {
       final service = GeminiService(apiKey: _byokApiKey!);
-      return service.generateContent(system, user);
+      return service.generateContent(system, user,
+          maxOutputTokens: maxOutputTokens);
     }
   }
 

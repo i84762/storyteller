@@ -22,6 +22,13 @@ class SubscriptionProvider extends ChangeNotifier {
   List<ProductDetails> get products => _iapService.products;
 
   Future<void> init() async {
+    if (AppConstants.testMode) {
+      _isPremium = true;
+      _isByokActive = true;
+      _isOnDeviceUnlocked = true;
+      notifyListeners();
+      return;
+    }
     await _iapService.init();
     _iapService.onPurchaseSuccess = _handlePurchaseSuccess;
     _iapService.onPurchaseError = (msg) {

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/subscription_tier.dart';
 import '../providers/model_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../utils/constants.dart';
 
 class ModelSelectorCard extends StatelessWidget {
   final SubscriptionTier tier;
@@ -80,6 +81,7 @@ class ModelSelectorCard extends StatelessWidget {
   }
 
   bool _isUnlocked(SubscriptionTier tier, SubscriptionProvider sub) {
+    if (AppConstants.testMode) return true;
     switch (tier) {
       case SubscriptionTier.free:
         return true;

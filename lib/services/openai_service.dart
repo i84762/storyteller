@@ -10,7 +10,11 @@ class OpenAIService {
     this.model = 'gpt-4o-mini',
   });
 
-  Future<String> generateContent(String systemPrompt, String userPrompt) async {
+  Future<String> generateContent(
+    String systemPrompt,
+    String userPrompt, {
+    int maxOutputTokens = 512,
+  }) async {
     final url = Uri.parse('https://api.openai.com/v1/chat/completions');
 
     final body = jsonEncode({
@@ -19,7 +23,7 @@ class OpenAIService {
         {'role': 'system', 'content': systemPrompt},
         {'role': 'user', 'content': userPrompt},
       ],
-      'max_tokens': 512,
+      'max_tokens': maxOutputTokens,
       'temperature': 0.4,
     });
 

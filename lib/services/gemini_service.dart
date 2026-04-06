@@ -11,7 +11,11 @@ class GeminiService {
     this.model = AppConstants.geminiFlashModel,
   });
 
-  Future<String> generateContent(String systemPrompt, String userPrompt) async {
+  Future<String> generateContent(
+    String systemPrompt,
+    String userPrompt, {
+    int maxOutputTokens = 512,
+  }) async {
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
     );
@@ -30,7 +34,7 @@ class GeminiService {
         }
       ],
       'generationConfig': {
-        'maxOutputTokens': 512,
+        'maxOutputTokens': maxOutputTokens,
         'temperature': 0.4,
       }
     });

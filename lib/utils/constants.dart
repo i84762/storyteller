@@ -1,4 +1,10 @@
+import 'package:flutter/foundation.dart';
+import '../models/listening_mode.dart';
+
 class AppConstants {
+  /// In debug builds every subscription tier is unlocked for testing.
+  static const bool testMode = kDebugMode;
+
   // Free tier limits
   static const int freeDailyRequestLimit = 10;
   static const int freeDailyTokenLimit = 5000;
@@ -20,6 +26,41 @@ class AppConstants {
   static const String geminiFlashModel = 'gemini-1.5-flash';
   static const String geminiProModel = 'gemini-1.5-pro';
 
+  /// BCP-47 language codes → display names (ordered by common usage).
+  static const Map<String, String> supportedLanguages = {
+    'en-US': 'English (US)',
+    'en-GB': 'English (UK)',
+    'es-ES': 'Spanish',
+    'fr-FR': 'French',
+    'de-DE': 'German',
+    'it-IT': 'Italian',
+    'pt-BR': 'Portuguese (Brazil)',
+    'pt-PT': 'Portuguese (Portugal)',
+    'nl-NL': 'Dutch',
+    'ru-RU': 'Russian',
+    'ja-JP': 'Japanese',
+    'zh-CN': 'Chinese (Simplified)',
+    'zh-TW': 'Chinese (Traditional)',
+    'ko-KR': 'Korean',
+    'ar-SA': 'Arabic',
+    'hi-IN': 'Hindi',
+    'tr-TR': 'Turkish',
+    'pl-PL': 'Polish',
+    'sv-SE': 'Swedish',
+    'da-DK': 'Danish',
+    'fi-FI': 'Finnish',
+    'nb-NO': 'Norwegian',
+    'cs-CZ': 'Czech',
+    'hu-HU': 'Hungarian',
+    'ro-RO': 'Romanian',
+    'uk-UA': 'Ukrainian',
+    'th-TH': 'Thai',
+    'id-ID': 'Indonesian',
+    'vi-VN': 'Vietnamese',
+    'el-GR': 'Greek',
+    'he-IL': 'Hebrew',
+  };
+
   // Intent classification prompt prefix
   static const String intentSystemPrompt = '''
 You are a reading assistant. The user is listening to a PDF being read aloud.
@@ -38,4 +79,106 @@ When answering questions about the document, be concise, clear, and helpful.
 When navigating, confirm the action taken.
 When controlling playback, acknowledge the command warmly.
 ''';
+
+  // ── Listening-mode transformation prompts ─────────────────────────────────
+
+  /// Returns the system prompt for AI-powered listening modes.
+  ///
+  /// All prompts produce plain spoken prose — no markdown, bullets, or headers.
+  /// When [targetLanguage] is provided the AI responds in that language; for
+  /// [ListeningMode.wordToWord] with a language set, the prompt becomes a
+  /// pure-translation instruction.
+  static String listeningModePrompt(
+    ListeningMode mode, {
+    String? focusTopic,
+    String? targetLanguage,
+  }) {
+    final langInstr = _langInstruction(targetLanguage);
+
+    switch (mode) {
+      case ListeningMode.wordToWord:
+        if (targetLanguage == null) return ''; // raw passthrough
+        final langName =
+            supportedLanguages[targetLanguage] ?? targetLanguage;
+        return '''
+Translate the following text into $langName.
+Preserve all meaning and detail faithfully. Write as natural spoken prose.
+Do not use bullet points, numbered lists, headers, or markdown symbols.
+''';
+
+      case ListeningMode.summary:
+        return '''
+You are an AI reading assistant.
+Summarise the following page in 3 to 5 clear, complete sentences that capture the main ideas.
+Write as natural prose suitable to be read aloud.
+Do not use bullet points, numbered lists, markdown formatting, or headers.
+Speak directly as if narrating to a listener.$langInstr
+''';
+
+      case ListeningMode.skimmed:
+        return '''
+You are an AI reading assistant.
+From the following text, extract the 5 most important sentences that convey the core meaning.
+Join them naturally as spoken prose, filling in only the minimum connective words needed.
+Do not add new information, bullet points, or markdown formatting.
+The result must sound natural when read aloud.$langInstr
+''';
+
+      case ListeningMode.study:
+        return '''
+You are an AI study assistant helping a student prepare for an exam.
+Transform the following text into a spoken study guide.
+Start with a one-sentence statement of the main topic.
+Then present the key facts, definitions, and important terms as clear spoken sentences.
+End with a one-sentence "remember this" takeaway.
+Do not use bullet points, numbered lists, or markdown. Write as natural speech.$langInstr
+''';
+
+      case ListeningMode.deepDive:
+        return '''
+You are an educational narrator.
+Read the following text and enrich it with brief contextual explanations.
+For each major concept, add one clarifying sentence of useful background or real-world context immediately after it is introduced.
+Keep all additions concise. The result should flow naturally as spoken audio.
+Do not use bullet points or markdown.$langInstr
+''';
+
+      case ListeningMode.storyteller:
+        return '''
+You are a skilled audiobook narrator.
+Rewrite the following text in an engaging, narrative voice as if telling a compelling story.
+Preserve every fact and piece of information, but make the language vivid, fluid, and captivating.
+Write as natural flowing prose suitable for listening — no bullet points or markdown.$langInstr
+''';
+
+      case ListeningMode.focus:
+        final topic =
+            focusTopic?.isNotEmpty == true ? focusTopic! : 'the main topic';
+        return '''
+You are an AI reading assistant. The listener is specifically interested in: $topic.
+From the following text, extract and present only the content directly relevant to "$topic".
+Write in clear, natural spoken sentences.
+If nothing in the text is relevant to "$topic", say exactly:
+"This page does not contain information about $topic."
+Do not use bullet points, numbered lists, or markdown.$langInstr
+''';
+
+      case ListeningMode.quiz:
+        return '''
+You are an AI study coach.
+For the following page of text, do this in order:
+First, generate exactly 2 short study questions that test understanding of the key content.
+After each question, immediately say "The answer is:" followed by a one-sentence answer.
+Then say "Now, here is a summary:" followed by a 2 to 3 sentence summary of the page.
+Format for audio only — no bullet points, no numbering, no markdown symbols.
+Use natural spoken transitions like "First question:", "Second question:", "The answer is:", "Now, here is a summary:".$langInstr
+''';
+    }
+  }
+
+  static String _langInstruction(String? code) {
+    if (code == null) return '';
+    final name = supportedLanguages[code] ?? code;
+    return '\nRespond in $name.';
+  }
 }
