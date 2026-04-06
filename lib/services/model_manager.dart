@@ -60,6 +60,9 @@ class ModelManager {
   /// Checks whether on-device AI (Gemini Nano via AICore) is available.
   Future<bool> checkOnDeviceAvailability() => _onDeviceService.isAvailable();
 
+  /// Expose service for UI-level status/download flows.
+  OnDeviceService get onDeviceService => _onDeviceService;
+
   /// Determines intent from user's spoken input
   Future<IntentResult> classifyIntent(String spokenInput) async {
     final response = await _generate(

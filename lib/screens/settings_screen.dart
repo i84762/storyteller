@@ -752,7 +752,8 @@ class _OnDevicePanel extends StatefulWidget {
 }
 
 class _OnDevicePanelState extends State<_OnDevicePanel> {
-  bool? _available;
+  String _status = 'checking'; // checking | available | downloadable | downloading | unavailable
+  bool _downloading = false;
 
   @override
   void initState() {
@@ -761,35 +762,93 @@ class _OnDevicePanelState extends State<_OnDevicePanel> {
   }
 
   Future<void> _check() async {
+    setState(() => _status = 'checking');
     try {
-      final mm = context.read<ModelProvider>().modelManager;
-      final ok = await mm.checkOnDeviceAvailability();
-      if (mounted) setState(() => _available = ok);
+      final svc = context.read<ModelProvider>().modelManager.onDeviceService;
+      svc.invalidateCache();
+      final s = await svc.checkStatus();
+      if (mounted) setState(() => _status = s);
     } catch (_) {
-      if (mounted) setState(() => _available = false);
+      if (mounted) setState(() => _status = 'unavailable');
+    }
+  }
+
+  Future<void> _download() async {
+    setState(() => _downloading = true);
+    try {
+      final svc = context.read<ModelProvider>().modelManager.onDeviceService;
+      await svc.ensureDownloaded();
+      await _check();
+    } finally {
+      if (mounted) setState(() => _downloading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_available == null) {
+    final cs = Theme.of(context).colorScheme;
+    if (_status == 'checking') {
       return const Center(
           child: Padding(
               padding: EdgeInsets.all(8),
               child: CircularProgressIndicator(strokeWidth: 2)));
     }
-    if (_available == true) {
+    if (_status == 'available') {
       return _InfoBox(
         color: Colors.green.shade700,
         icon: Icons.check_circle_outline,
-        text: 'Gemini Nano is ready on this device.',
+        text: 'Gemini Nano is ready on this device. On-device AI is active.',
       );
     }
+    if (_status == 'downloading') {
+      return _InfoBox(
+        color: cs.primary,
+        icon: Icons.downloading_outlined,
+        text: 'Gemini Nano is downloading in the background. This may take a few minutes.',
+        trailing: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: OutlinedButton.icon(
+            onPressed: _check,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Refresh'),
+          ),
+        ),
+      );
+    }
+    if (_status == 'downloadable') {
+      return _InfoBox(
+        color: Colors.orange.shade700,
+        icon: Icons.cloud_download_outlined,
+        text: 'Gemini Nano is available but needs to be downloaded (~1–2 GB).',
+        trailing: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: FilledButton.icon(
+            onPressed: _downloading ? null : _download,
+            icon: _downloading
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.download_for_offline_outlined, size: 18),
+            label: const Text('Download Gemini Nano'),
+          ),
+        ),
+      );
+    }
+    // unavailable
     return _InfoBox(
-      color: Colors.orange.shade700,
-      icon: Icons.warning_amber_outlined,
-      text:
-          'AICore not found. Install "Google AICore" from the Play Store to use on-device AI.',
+      color: Colors.red.shade700,
+      icon: Icons.error_outline,
+      text: 'On-device AI is not supported on this device, or Google AICore '
+          'is not installed. Search "Google AI Core" on the Play Store.',
+      trailing: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: OutlinedButton.icon(
+          onPressed: _check,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('Re-check'),
+        ),
+      ),
     );
   }
 }
@@ -957,8 +1016,14 @@ class _InfoBox extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String text;
+  final Widget? trailing;
 
-  const _InfoBox({required this.color, required this.icon, required this.text});
+  const _InfoBox({
+    required this.color,
+    required this.icon,
+    required this.text,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -970,17 +1035,23 @@ class _InfoBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.8),
-                    fontSize: 13,
-                    height: 1.4)),
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(text,
+                    style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.8),
+                        fontSize: 13,
+                        height: 1.4)),
+              ),
+            ],
           ),
+          if (trailing != null) trailing!,
         ],
       ),
     );

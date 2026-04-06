@@ -6,6 +6,6 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : AudioServiceFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        GeminiNanoPlugin().register(flutterEngine)
+        GeminiNanoPlugin(applicationContext).register(flutterEngine)
     }
 }

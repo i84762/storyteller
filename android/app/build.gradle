@@ -45,7 +45,7 @@ android {
         applicationId "com.storyteller.storyteller"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 24
+        minSdkVersion 26
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
@@ -65,9 +65,7 @@ flutter {
 }
 
 dependencies {
-    // AICore / Gemini Nano: no official stable Maven coordinate yet.
-    // GeminiNanoPlugin.kt uses MethodChannel to bridge — if AICore service
-    // is not installed on the device it returns unavailable gracefully.
-    // Uncomment and update the line below when an official coordinate ships:
-    // implementation("com.google.ai.edge.aicore:aicore:VERSION")
+    // ML Kit GenAI Prompt API — uses on-device Gemini Nano via AICore.
+    // Supported on Galaxy S25/S26, Pixel 9+, and other flagships.
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
 }
