@@ -23,10 +23,18 @@ class NotificationService {
   }
 
   static Future<void> showProgress({
-    required String title,
-    required int progress,
+    required String bookTitle,
+    required int textDone,
+    required int imageDone,
     required int total,
+    required bool includePictures,
   }) async {
+    final isImagePhase = includePictures && textDone >= total;
+    final progress = isImagePhase ? imageDone : textDone;
+    final phaseLabel = isImagePhase
+        ? 'Generating illustrations ($imageDone/$total)'
+        : 'Processing text ($textDone/$total)';
+
     final androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
@@ -37,26 +45,31 @@ class NotificationService {
       maxProgress: total,
       progress: progress,
       ongoing: true,
+      subText: bookTitle,
     );
     await _plugin.show(
       _notifId,
-      title,
-      'Processing page $progress of $total',
+      isImagePhase ? '🎨 Illustrating "$bookTitle"' : '📚 Processing "$bookTitle"',
+      phaseLabel,
       NotificationDetails(android: androidDetails),
     );
   }
 
-  static Future<void> showComplete(String bookTitle) async {
+  static Future<void> showComplete(String bookTitle,
+      {bool withPictures = false}) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
       importance: Importance.high,
       priority: Priority.high,
+      styleInformation: BigTextStyleInformation(''),
     );
     await _plugin.show(
       _notifId,
-      'Offline Ready',
-      '"$bookTitle" is ready to read offline.',
+      '✓ Offline Ready',
+      withPictures
+          ? '"$bookTitle" is ready offline — text + illustrations included.'
+          : '"$bookTitle" is ready to read offline.',
       const NotificationDetails(android: androidDetails),
     );
   }

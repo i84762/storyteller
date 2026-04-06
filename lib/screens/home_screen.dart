@@ -287,10 +287,14 @@ class _OfflineBookTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isProcessing = config.isProcessing;
+    final isImagePhase =
+        isProcessing && config.includePictures && config.processedPages >= config.totalPages;
+    final progressColor = isImagePhase ? Colors.deepOrange : cs.primary;
+
     return GestureDetector(
       onTap: isProcessing ? null : onTap,
       child: Opacity(
-        opacity: isProcessing ? 0.5 : 1.0,
+        opacity: isProcessing ? 0.6 : 1.0,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -313,13 +317,37 @@ class _OfflineBookTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          config.bookTitle,
-                          style: TextStyle(
-                            color: cs.onSurface,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                config.bookTitle,
+                                style: TextStyle(
+                                  color: cs.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (config.includePictures) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.deepOrange.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  '📸 Pictorial',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.deepOrange,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -329,6 +357,17 @@ class _OfflineBookTile extends StatelessWidget {
                             fontSize: 11,
                           ),
                         ),
+                        if (config.isComplete && config.includePictures)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '${config.totalPages} pages · ${config.processedImages} illustrations',
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.4),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
                         if (!config.isComplete && !isProcessing)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
@@ -346,11 +385,8 @@ class _OfflineBookTile extends StatelessWidget {
                   if (isProcessing) ...[
                     const SizedBox(width: 8),
                     Text(
-                      'Processing…',
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.35),
-                        fontSize: 10,
-                      ),
+                      isImagePhase ? '🎨' : '⚙️',
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ] else if (config.processedAt != null) ...[
                     const SizedBox(width: 8),
@@ -364,15 +400,24 @@ class _OfflineBookTile extends StatelessWidget {
                   ],
                 ],
               ),
-              if (isProcessing)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: LinearProgressIndicator(
-                    backgroundColor: cs.outline.withValues(alpha: 0.1),
-                    color: cs.primary,
-                    minHeight: 2,
+              if (isProcessing) ...[
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                  backgroundColor: cs.outline.withValues(alpha: 0.1),
+                  color: progressColor,
+                  minHeight: 2,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  config.statusLabel,
+                  style: TextStyle(
+                    color: isImagePhase
+                        ? Colors.deepOrange
+                        : cs.onSurface.withValues(alpha: 0.5),
+                    fontSize: 10,
                   ),
                 ),
+              ],
             ],
           ),
         ),

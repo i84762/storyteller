@@ -173,42 +173,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
             visualDensity: VisualDensity.compact,
           ),
           if (reader.hasPdf && !reader.isProcessingOffline)
-            GestureDetector(
-              onTap: () => _showOfflineDialog(context, reader),
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF7C3AED), Color(0xFFB45FEC)],
+            Builder(builder: (ctx) {
+              final cs = Theme.of(ctx).colorScheme;
+              return GestureDetector(
+                onTap: () => _showOfflineDialog(context, reader),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: cs.onSurface.withValues(alpha: 0.14),
+                      width: 0.8,
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.download_rounded, size: 13, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'Offline',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.download_outlined, size: 13, color: cs.onSurface.withValues(alpha: 0.55)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Offline',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.55),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
       body: Column(
@@ -327,6 +325,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       BuildContext context, ReaderProvider reader) async {
     ListeningMode selectedMode = reader.listeningMode;
     ReadingTone selectedTone = reader.tone;
+    bool includePictures = false;
 
     await showDialog<void>(
       context: context,
@@ -384,6 +383,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           .toList(),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.image_outlined,
+                          size: 18,
+                          color: cs.onSurface.withValues(alpha: 0.6)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Include Illustrations',
+                              style: TextStyle(
+                                  color: cs.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                            Text(
+                              'AI generates a picture for every page.\nTakes longer but worth the wait.',
+                              style: TextStyle(
+                                  color: cs.onSurface.withValues(alpha: 0.5),
+                                  fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: includePictures,
+                        onChanged: (v) =>
+                            setLocalState(() => includePictures = v),
+                        activeColor: Colors.deepOrange,
+                      ),
+                    ],
+                  ),
                 ],
               ),
               actions: [
@@ -395,7 +429,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   onPressed: () {
                     Navigator.pop(ctx);
                     reader.processForOffline(
-                        mode: selectedMode, tone: selectedTone);
+                      mode: selectedMode,
+                      tone: selectedTone,
+                      includePictures: includePictures,
+                    );
                   },
                   child: const Text('Start'),
                 ),
@@ -420,6 +457,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
         key: ValueKey('pic_${reader.currentPage}'),
         image: reader.currentPageImage,
         isGenerating: reader.isGeneratingImage,
+        pageText: reader.displayText.isNotEmpty
+            ? reader.displayText
+            : reader.currentPageText,
         wordSpans: reader.wordSpans,
         currentWordIndex: reader.currentWordIndex,
         onWordTap: reader.jumpToWord,
@@ -642,6 +682,7 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
 class _PictorialView extends StatelessWidget {
   final Uint8List? image;
   final bool isGenerating;
+  final String pageText;
   final List<WordSpan> wordSpans;
   final int currentWordIndex;
   final void Function(int) onWordTap;
@@ -651,6 +692,7 @@ class _PictorialView extends StatelessWidget {
     super.key,
     required this.image,
     required this.isGenerating,
+    required this.pageText,
     required this.wordSpans,
     required this.currentWordIndex,
     required this.onWordTap,
@@ -660,129 +702,145 @@ class _PictorialView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return ClipRect(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Background: image or themed loader ────────────────────────
+          // ── Layer 1: always-visible page text ─────────────────────────
+          // Stays underneath; image fades+scales in on top when ready.
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+            child: Text(
+              pageText.isEmpty ? '' : pageText,
+              style: TextStyle(
+                color: cs.onSurface,
+                fontSize: 16,
+                height: 1.7,
+                fontFamily: 'Georgia',
+              ),
+            ),
+          ),
+
+          // ── Layer 2: image reveal (fades+scales in over text) ─────────
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 800),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: child,
-            ),
+            duration: const Duration(milliseconds: 900),
+            transitionBuilder: (child, animation) {
+              // Incoming image: fade in + scale from 1.04 → 1.0 (gentle zoom)
+              // Outgoing (nothing — text stays on layer 1): just fade out
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 1.04, end: 1.0).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                  ),
+                  child: child,
+                ),
+              );
+            },
             child: image != null
-                ? Image.memory(
-                    image!,
+                ? Stack(
                     key: ValueKey(image.hashCode),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    gaplessPlayback: true,
-                  )
-                : Container(
-                    key: const ValueKey('loader'),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          cs.primaryContainer.withValues(alpha: 0.6),
-                          cs.secondaryContainer.withValues(alpha: 0.8),
-                        ],
-                      ),
-                    ),
-                    child: Center(
-                      child: StoryLoader(
-                        message: 'Illustrating your story…',
-                        size: 100,
-                      ),
-                    ),
-                  ),
-          ),
-
-          // ── Top vignette ───────────────────────────────────────────────
-          if (image != null)
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: Container(
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.45),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ── Bottom gradient + subtitles ────────────────────────────────
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: image != null
-                      ? [Colors.transparent, Colors.black.withValues(alpha: 0.85)]
-                      : [Colors.transparent, cs.surface.withValues(alpha: 0.7)],
-                ),
-              ),
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 20),
-              child: showSubtitles && wordSpans.isNotEmpty && currentWordIndex >= 0
-                  ? _CurrentWordDisplay(
-                      wordSpans: wordSpans,
-                      currentWordIndex: currentWordIndex,
-                      onWordTap: onWordTap,
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ),
-
-          // ── Generating badge (only while loading next image) ──────────
-          if (isGenerating && image != null)
-            Positioned(
-              top: 14,
-              right: 14,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    fit: StackFit.expand,
                     children: [
-                      SizedBox(
-                        width: 9,
-                        height: 9,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: cs.primary.withValues(alpha: 0.9),
+                      // Full-bleed image
+                      Image.memory(
+                        image!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        gaplessPlayback: true,
+                      ),
+                      // Top vignette
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.45),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 7),
-                      const Text(
-                        '✦ Illustrating…',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                      // Bottom gradient + subtitles
+                      Positioned(
+                        bottom: 0, left: 0, right: 0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.85),
+                              ],
+                            ),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 48, 16, 20),
+                          child: showSubtitles &&
+                                  wordSpans.isNotEmpty &&
+                                  currentWordIndex >= 0
+                              ? _CurrentWordDisplay(
+                                  wordSpans: wordSpans,
+                                  currentWordIndex: currentWordIndex,
+                                  onWordTap: onWordTap,
+                                )
+                              : const SizedBox.shrink(),
                         ),
                       ),
                     ],
+                  )
+                : const SizedBox.shrink(key: ValueKey('no-image')),
+          ),
+
+          // ── Layer 3: generating badge (corner chip while working) ──────
+          if (isGenerating)
+            Positioned(
+              top: 14, right: 14,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: cs.primary.withValues(alpha: 0.25),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 9,
+                      height: 9,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: cs.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      '✦ Illustrating…',
+                      style: TextStyle(
+                        color: cs.onPrimaryContainer,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1110,10 +1168,10 @@ class _ConversationBubble extends StatelessWidget {
 
 /// Unified bottom player panel.
 ///
-/// Layout (top → bottom):
+/// Layout:
 ///   1. Thin page-progress bar
-///   2. Controls row: prev | slow | play/pause | fast | next | mic
-///   3. Speed pill + SafeArea bottom padding
+///   2. Main controls: prev | play/pause | next
+///   3. Secondary: mic (left) — speed − display + (right)
 class _BottomPlayer extends StatelessWidget {
   final ReaderProvider reader;
   const _BottomPlayer({required this.reader});
@@ -1147,30 +1205,28 @@ class _BottomPlayer extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Page progress bar
+            // ── Progress bar ─────────────────────────────────────────
             LinearProgressIndicator(
               value: progress,
-              minHeight: 2,
+              minHeight: 3,
               backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
               valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
             ),
 
-            // Controls row: speed− | prev | play/pause | next | speed+
+            const SizedBox(height: 8),
+
+            // ── Single controls row: mic | prev | play | next | speed ─
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Slow down (−) — tertiary, compact
-                  _SpeedButton(
-                    icon: Icons.remove_rounded,
-                    enabled: !atMin,
-                    onTap: reader.slowDown,
-                  ),
+                  // Mic — voice input
+                  const VoiceInputButton(),
 
-                  // Previous page — secondary, prominent
+                  const Spacer(),
+
+                  // Previous page
                   _NavButton(
                     icon: Icons.skip_previous_rounded,
                     tooltip: 'Previous page',
@@ -1179,56 +1235,53 @@ class _BottomPlayer extends StatelessWidget {
                     cs: cs,
                   ),
 
-                  // Play / Pause — primary
+                  const SizedBox(width: 20),
+
+                  // Play / Pause — primary hero button
                   GestureDetector(
                     onTap: reader.hasPdf
-                        ? () {
-                            if (isReading) {
-                              reader.pause();
-                            } else {
-                              reader.startReading();
-                            }
-                          }
+                        ? () => isReading ? reader.pause() : reader.startReading()
                         : null,
                     child: Container(
-                      width: 62,
-                      height: 62,
+                      width: 64,
+                      height: 64,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: reader.hasPdf
                             ? LinearGradient(
-                                colors: [
-                                  cs.primary,
-                                  cs.primary.withValues(alpha: 0.8),
-                                ],
+                                colors: [cs.primary, Color.alphaBlend(Colors.white.withValues(alpha: 0.15), cs.primary)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
                             : null,
                         color: reader.hasPdf
                             ? null
-                            : cs.onSurface.withValues(alpha: 0.12),
+                            : cs.onSurface.withValues(alpha: 0.1),
                         boxShadow: reader.hasPdf
                             ? [
                                 BoxShadow(
-                                  color: cs.primary.withValues(alpha: 0.4),
-                                  blurRadius: 12,
+                                  color: cs.primary.withValues(alpha: 0.3),
+                                  blurRadius: 14,
                                   offset: const Offset(0, 4),
-                                )
+                                ),
                               ]
                             : null,
                       ),
                       child: Icon(
-                        isReading ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        isReading
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                         color: reader.hasPdf
                             ? cs.onPrimary
                             : cs.onSurface.withValues(alpha: 0.3),
-                        size: 30,
+                        size: 32,
                       ),
                     ),
                   ),
 
-                  // Next page — secondary, prominent
+                  const SizedBox(width: 20),
+
+                  // Next page
                   _NavButton(
                     icon: Icons.skip_next_rounded,
                     tooltip: 'Next page',
@@ -1238,31 +1291,33 @@ class _BottomPlayer extends StatelessWidget {
                     cs: cs,
                   ),
 
-                  // Speed up (+) — tertiary, compact
+                  const Spacer(),
+
+                  // Speed controls
+                  _SpeedButton(
+                    icon: Icons.remove_rounded,
+                    enabled: !atMin,
+                    onTap: reader.slowDown,
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   _SpeedButton(
                     icon: Icons.add_rounded,
                     enabled: !atMax,
                     onTap: reader.speedUp,
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom row: mic + speed label
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const VoiceInputButton(),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${displayRate.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}×',
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.45),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
                   ),
                 ],
               ),

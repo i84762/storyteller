@@ -28,6 +28,25 @@ class ImageGenerationService {
     }
   }
 
+  /// High-quality variant for offline pre-processing. Uses larger canvas,
+  /// enhanced flag and a longer timeout (90 s) since the user is waiting offline.
+  static Future<Uint8List?> generatePollinationsHQ(String prompt) async {
+    try {
+      final encoded = Uri.encodeComponent(prompt);
+      final url = Uri.parse(
+        '$_pollinationsBase/$encoded'
+        '?width=1024&height=768&nologo=true&model=flux&enhance=true'
+        '&seed=${DateTime.now().millisecondsSinceEpoch % 9999}',
+      );
+      final response =
+          await http.get(url).timeout(const Duration(seconds: 90));
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) return null;
+      return response.bodyBytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Generates an image using OpenAI DALL-E 3 (BYOK OpenAI).
   static Future<Uint8List?> generateOpenAI(
       String apiKey, String prompt) async {

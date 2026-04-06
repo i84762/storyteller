@@ -9,6 +9,7 @@ import '../models/reading_tone.dart';
 import '../services/book_offline_processor.dart';
 import '../services/library_service.dart';
 import '../services/notification_service.dart';
+import '../services/offline_image_cache_service.dart';
 import '../services/offline_library_service.dart';
 import '../services/page_cache_service.dart';
 import '../services/pdf_service.dart';
@@ -95,10 +96,12 @@ class ReaderProvider extends ChangeNotifier {
   bool _isProcessingOffline = false;
   int _offlineProgress = 0;
   int _offlineTotal = 0;
+  String _offlinePhaseLabel = '';
 
   bool get isProcessingOffline => _isProcessingOffline;
   int get offlineProgress => _offlineProgress;
   int get offlineTotal => _offlineTotal;
+  String get offlinePhaseLabel => _offlinePhaseLabel;
   List<OfflineConfig> get offlineBooks => _offlineLibrary.configs;
   List<OfflineConfig> offlineConfigsForBook(String path) =>
       _offlineLibrary.forBook(path);
@@ -707,7 +710,8 @@ class ReaderProvider extends ChangeNotifier {
   }
 
   /// Fire-and-forget: generates and caches a page illustration for pictorial mode.
-  Future<void> _triggerImageGeneration(int page) async {if (modelProvider == null) return;
+  Future<void> _triggerImageGeneration(int page) async {
+    if (modelProvider == null) return;
 
     // Serve from in-memory cache immediately if available.
     if (_imageCache.containsKey(page)) {
@@ -716,6 +720,20 @@ class ReaderProvider extends ChangeNotifier {
         notifyListeners();
       }
       return;
+    }
+
+    // Check disk cache first (persisted from offline processing)
+    if (_pdfPath != null) {
+      final diskImage = await OfflineImageCacheService.get(_pdfPath!, page);
+      if (diskImage != null) {
+        _imageCache[page] = diskImage;
+        if (page == _currentPage) {
+          _currentPageImage = diskImage;
+          _isGeneratingImage = false;
+          notifyListeners();
+        }
+        return;
+      }
     }
 
     if (page == _currentPage) {
@@ -792,11 +810,13 @@ class ReaderProvider extends ChangeNotifier {
   Future<void> processForOffline({
     required ListeningMode mode,
     required ReadingTone tone,
+    bool includePictures = false,
   }) async {
     if (modelProvider == null || _pdfPath == null) return;
     _isProcessingOffline = true;
     _offlineProgress = 0;
     _offlineTotal = _pdfService.totalPages;
+    _offlinePhaseLabel = '';
     notifyListeners();
 
     // Optimistically add to library as "processing"
@@ -807,6 +827,7 @@ class ReaderProvider extends ChangeNotifier {
       aiTier: modelProvider!.currentTierName,
       totalPages: _pdfService.totalPages,
       isProcessing: true,
+      includePictures: includePictures,
     );
     await _offlineLibrary.save(processingConfig);
     notifyListeners();
@@ -817,6 +838,7 @@ class ReaderProvider extends ChangeNotifier {
       tone: tone,
       aiTier: modelProvider!.currentTierName,
       totalPages: _pdfService.totalPages,
+      includePictures: includePictures,
     );
 
     _offlineProcessor = BookOfflineProcessor(
@@ -827,29 +849,39 @@ class ReaderProvider extends ChangeNotifier {
 
     bool completed = false;
     await _offlineProcessor!.process(
-      onProgress: (done, total) {
-        _offlineProgress = done;
+      onProgress: (textDone, imageDone, total) {
+        _offlineProgress = textDone >= total ? imageDone : textDone;
         _offlineTotal = total;
+        _offlinePhaseLabel = textDone >= total && config.includePictures
+            ? 'Illustrating page ${imageDone + 1} of $total'
+            : 'Processing page ${textDone + 1} of $total';
         notifyListeners();
         NotificationService.showProgress(
-          title: 'Processing "$_bookTitle"',
-          progress: done,
+          bookTitle: _bookTitle,
+          textDone: textDone,
+          imageDone: imageDone,
           total: total,
+          includePictures: config.includePictures,
         ).ignore();
       },
       onComplete: () {
         completed = true;
       },
+      onError: (error) {
+        // Non-fatal: log and continue
+      },
     );
 
     if (completed) {
       await _offlineLibrary.save(config);
-      NotificationService.showComplete(_bookTitle).ignore();
+      NotificationService.showComplete(_bookTitle,
+          withPictures: config.includePictures).ignore();
     } else {
       await NotificationService.cancel();
     }
     _isProcessingOffline = false;
     _offlineProcessor = null;
+    _offlinePhaseLabel = '';
     notifyListeners();
   }
 
