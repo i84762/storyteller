@@ -209,12 +209,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildTextView(ReaderProvider reader) {
-    final isWordToWord = reader.listeningMode == ListeningMode.wordToWord;
     final isReading = reader.state == ReaderState.reading;
 
-    // In word-to-word mode with word spans available, use the interactive
-    // word-highlight view. Fall back to plain text view otherwise.
-    if (isWordToWord && reader.wordSpans.isNotEmpty) {
+    // Use the interactive word-highlight view whenever word spans are
+    // available — this works for every AI mode, not just word-to-word.
+    if (reader.wordSpans.isNotEmpty) {
       return _WordHighlightView(
         key: ValueKey(reader.currentPage),
         fullText: reader.spokenText,
