@@ -11,6 +11,7 @@ class OfflineConfig {
   final int totalPages;
   int processedPages;
   DateTime? processedAt;
+  final bool isProcessing;
 
   OfflineConfig({
     required this.bookPath,
@@ -20,6 +21,7 @@ class OfflineConfig {
     required this.totalPages,
     this.processedPages = 0,
     this.processedAt,
+    this.isProcessing = false,
   });
 
   bool get isComplete => totalPages > 0 && processedPages >= totalPages;
@@ -36,6 +38,7 @@ class OfflineConfig {
         'totalPages': totalPages,
         'processedPages': processedPages,
         'processedAt': processedAt?.toIso8601String(),
+        'isProcessing': isProcessing,
       };
 
   factory OfflineConfig.fromJson(Map<String, dynamic> json) {
@@ -55,6 +58,7 @@ class OfflineConfig {
       processedAt: json['processedAt'] != null
           ? DateTime.tryParse(json['processedAt'] as String)
           : null,
+      isProcessing: json['isProcessing'] as bool? ?? false,
     );
   }
 

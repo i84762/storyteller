@@ -8,6 +8,7 @@ import '../providers/reader_provider.dart';
 import '../widgets/voice_input_button.dart';
 import '../widgets/usage_indicator.dart';
 import '../widgets/listening_mode_picker.dart';
+import '../widgets/story_loader.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -385,6 +386,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         wordSpans: reader.wordSpans,
         currentWordIndex: reader.currentWordIndex,
         onWordTap: reader.jumpToWord,
+        showSubtitles: reader.pictorialSubtitles,
       );
     }
 
@@ -606,6 +608,7 @@ class _PictorialView extends StatelessWidget {
   final List<WordSpan> wordSpans;
   final int currentWordIndex;
   final void Function(int) onWordTap;
+  final bool showSubtitles;
 
   const _PictorialView({
     super.key,
@@ -614,6 +617,7 @@ class _PictorialView extends StatelessWidget {
     required this.wordSpans,
     required this.currentWordIndex,
     required this.onWordTap,
+    required this.showSubtitles,
   });
 
   @override
@@ -631,7 +635,7 @@ class _PictorialView extends StatelessWidget {
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
                 )
-              : _PictorialShimmer(key: const ValueKey('shimmer')),
+              : Center(child: StoryLoader(message: 'Illustrating your story…')),
         ),
 
         // ── Bottom gradient overlay ────────────────────────────────────
@@ -648,7 +652,7 @@ class _PictorialView extends StatelessWidget {
               ),
             ),
             padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
-            child: wordSpans.isNotEmpty && currentWordIndex >= 0
+            child: showSubtitles && wordSpans.isNotEmpty && currentWordIndex >= 0
                 ? _CurrentWordDisplay(
                     wordSpans: wordSpans,
                     currentWordIndex: currentWordIndex,

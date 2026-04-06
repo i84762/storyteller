@@ -67,6 +67,19 @@ class ReaderProvider extends ChangeNotifier {
   bool _pictorialEnabled = false;
   bool get pictorialEnabled => _pictorialEnabled;
 
+  bool _pictorialSubtitles = false;
+  bool get pictorialSubtitles => _pictorialSubtitles;
+
+  void setPictorialSubtitles(bool val) {
+    _pictorialSubtitles = val;
+    notifyListeners();
+  }
+
+  /// Whether pictorial image generation is likely to work.
+  /// Pollinations.ai is always free/available, but step 1 (prompt generation)
+  /// requires a working AI text provider.
+  bool get canUsePictorial => modelProvider != null;
+
   void setPictorialEnabled(bool val) {
     _pictorialEnabled = val;
     if (!val) {
@@ -352,7 +365,8 @@ class ReaderProvider extends ChangeNotifier {
     // Current page is ready — start prefetching ahead in the background.
     _schedulePrefetch(_currentPage + 1);
     if (_pictorialEnabled) {
-      _triggerImageGeneration(_currentPage);
+      await _triggerImageGeneration(_currentPage);
+      await _waitForImage(_currentPage);
     }
     await _audioHandler.speakText(
       text,
@@ -393,8 +407,8 @@ class ReaderProvider extends ChangeNotifier {
       _currentPage++;
       _saveProgress();
       _clearWordState();
+      _state = ReaderState.paused;
       notifyListeners();
-      await startReading();
     }
   }
 
@@ -404,8 +418,8 @@ class ReaderProvider extends ChangeNotifier {
       _currentPage--;
       _saveProgress();
       _clearWordState();
+      _state = ReaderState.paused;
       notifyListeners();
-      await startReading();
     }
   }
 
@@ -415,8 +429,8 @@ class ReaderProvider extends ChangeNotifier {
       _currentPage = page;
       _saveProgress();
       _clearWordState();
+      _state = ReaderState.paused;
       notifyListeners();
-      await startReading();
     }
   }
 
@@ -479,7 +493,8 @@ class ReaderProvider extends ChangeNotifier {
     // Current page ready — prefetch ahead.
     _schedulePrefetch(index + 1);
     if (_pictorialEnabled) {
-      _triggerImageGeneration(index);
+      await _triggerImageGeneration(index);
+      await _waitForImage(index);
     }
     await _audioHandler.speakText(
       text,
@@ -677,9 +692,17 @@ class ReaderProvider extends ChangeNotifier {
     }
   }
 
+  /// Waits up to [maxWait] for the image to be generated, then continues.
+  Future<void> _waitForImage(int page, {Duration maxWait = const Duration(seconds: 30)}) async {
+    final deadline = DateTime.now().add(maxWait);
+    while (_isGeneratingImage && page == _currentPage) {
+      if (DateTime.now().isAfter(deadline)) break;
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
   /// Fire-and-forget: generates and caches a page illustration for pictorial mode.
-  Future<void> _triggerImageGeneration(int page) async {
-    if (modelProvider == null) return;
+  Future<void> _triggerImageGeneration(int page) async {if (modelProvider == null) return;
 
     // Serve from in-memory cache immediately if available.
     if (_imageCache.containsKey(page)) {
@@ -769,6 +792,18 @@ class ReaderProvider extends ChangeNotifier {
     _isProcessingOffline = true;
     _offlineProgress = 0;
     _offlineTotal = _pdfService.totalPages;
+    notifyListeners();
+
+    // Optimistically add to library as "processing"
+    final processingConfig = OfflineConfig(
+      bookPath: _pdfPath!,
+      mode: mode,
+      tone: tone,
+      aiTier: modelProvider!.currentTierName,
+      totalPages: _pdfService.totalPages,
+      isProcessing: true,
+    );
+    await _offlineLibrary.save(processingConfig);
     notifyListeners();
 
     final config = OfflineConfig(

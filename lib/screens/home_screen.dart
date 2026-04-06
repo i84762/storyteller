@@ -286,64 +286,95 @@ class _OfflineBookTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isProcessing = config.isProcessing;
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.offline_pin, color: Colors.green, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: isProcessing ? null : onTap,
+      child: Opacity(
+        opacity: isProcessing ? 0.5 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    config.bookTitle,
-                    style: TextStyle(
-                      color: cs.onSurface,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                  Icon(
+                    isProcessing ? Icons.hourglass_top : Icons.offline_pin,
+                    color: isProcessing ? cs.primary : Colors.green,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          config.bookTitle,
+                          style: TextStyle(
+                            color: cs.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${config.mode.displayName} · ${config.tone.emoji} ${config.tone.displayName}',
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.5),
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (!config.isComplete && !isProcessing)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: LinearProgressIndicator(
+                              value: config.progress,
+                              backgroundColor:
+                                  cs.outline.withValues(alpha: 0.1),
+                              color: cs.primary,
+                              minHeight: 2,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${config.mode.displayName} · ${config.tone.emoji} ${config.tone.displayName}',
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                      fontSize: 11,
-                    ),
-                  ),
-                  if (!config.isComplete)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: LinearProgressIndicator(
-                        value: config.progress,
-                        backgroundColor:
-                            cs.outline.withValues(alpha: 0.1),
-                        color: cs.primary,
-                        minHeight: 2,
+                  if (isProcessing) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      'Processing…',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.35),
+                        fontSize: 10,
                       ),
                     ),
+                  ] else if (config.processedAt != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      _fmtDate(config.processedAt!),
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.35),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            ),
-            if (config.processedAt != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                _fmtDate(config.processedAt!),
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.35),
-                  fontSize: 10,
+              if (isProcessing)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: LinearProgressIndicator(
+                    backgroundColor: cs.outline.withValues(alpha: 0.1),
+                    color: cs.primary,
+                    minHeight: 2,
+                  ),
                 ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
