@@ -313,22 +313,54 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isLight = cs.brightness == Brightness.light;
     final text = widget.fullText;
     final spans = <InlineSpan>[];
     int lastEnd = 0;
 
-    final normalStyle = TextStyle(
+    const fontSize = 16.0;
+    const lineHeight = 1.8;
+    const fontFamily = 'Georgia';
+
+    final baseStyle = TextStyle(
       color: cs.onSurface,
-      fontSize: 16,
-      height: 1.8,
-      fontFamily: 'Georgia',
+      fontSize: fontSize,
+      height: lineHeight,
+      fontFamily: fontFamily,
     );
-    final spaceStyle = TextStyle(
-      color: cs.onSurface,
-      fontSize: 16,
-      height: 1.8,
-      fontFamily: 'Georgia',
-    );
+
+    // Theme-matched highlight:
+    //
+    // Sepia (light): the active word shifts to the warm sienna primary colour
+    // with a barely-there warm wash behind it — like ink catching the reading
+    // lamp. No harsh contrast, no foreign colours.
+    //
+    // Dark Purple: the word brightens to the vivid lavender accent
+    // (onPrimaryContainer) with a soft lavender background tint and a gentle
+    // radial glow via Shadow — like a word quietly illuminating itself.
+    final highlightStyle = isLight
+        ? TextStyle(
+            color: cs.primary,
+            backgroundColor: cs.primary.withAlpha(22),
+            fontSize: fontSize,
+            height: lineHeight,
+            fontFamily: fontFamily,
+            fontWeight: FontWeight.w700,
+          )
+        : TextStyle(
+            color: cs.onPrimaryContainer,
+            backgroundColor: cs.primary.withAlpha(38),
+            fontSize: fontSize,
+            height: lineHeight,
+            fontFamily: fontFamily,
+            fontWeight: FontWeight.w600,
+            shadows: [
+              Shadow(
+                color: cs.primary.withAlpha(115),
+                blurRadius: 14,
+              ),
+            ],
+          );
 
     for (int i = 0; i < widget.wordSpans.length; i++) {
       final span = widget.wordSpans[i];
@@ -337,25 +369,14 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
       if (span.start > lastEnd) {
         spans.add(TextSpan(
           text: text.substring(lastEnd, span.start),
-          style: spaceStyle,
+          style: baseStyle,
         ));
       }
 
       final isHighlighted = i == widget.currentWordIndex;
       spans.add(TextSpan(
         text: span.text,
-        style: isHighlighted
-            ? TextStyle(
-                color: cs.brightness == Brightness.dark
-                    ? Colors.black
-                    : Colors.brown.shade900,
-                backgroundColor: const Color(0xFFFFD54F), // amber highlight
-                fontSize: 16,
-                height: 1.8,
-                fontFamily: 'Georgia',
-                fontWeight: FontWeight.w600,
-              )
-            : normalStyle,
+        style: isHighlighted ? highlightStyle : baseStyle,
         recognizer: _recognizers[i],
       ));
       lastEnd = span.end;
@@ -363,7 +384,7 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
 
     // Any trailing text after the last word
     if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd), style: spaceStyle));
+      spans.add(TextSpan(text: text.substring(lastEnd), style: baseStyle));
     }
 
     return SingleChildScrollView(
