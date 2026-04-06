@@ -75,6 +75,7 @@ class PageCacheService {
     String mode,
     String? language,
     String aiTier,
+    String tone,
   ) async {
     final db = _db;
     if (db == null) return null;
@@ -83,8 +84,8 @@ class PageCacheService {
         _table,
         columns: ['content'],
         where:
-            'book_path = ? AND page_index = ? AND mode = ? AND language = ? AND ai_tier = ?',
-        whereArgs: [bookPath, pageIndex, mode, language ?? _originalLang, aiTier],
+            'book_path = ? AND page_index = ? AND mode = ? AND language = ? AND ai_tier = ? AND tone = ?',
+        whereArgs: [bookPath, pageIndex, mode, language ?? _originalLang, aiTier, tone],
         limit: 1,
       );
       return rows.isEmpty ? null : rows.first['content'] as String;
@@ -100,6 +101,7 @@ class PageCacheService {
     String mode,
     String? language,
     String aiTier,
+    String tone,
     String content,
   ) async {
     final db = _db;
@@ -113,6 +115,7 @@ class PageCacheService {
           'mode': mode,
           'language': language ?? _originalLang,
           'ai_tier': aiTier,
+          'tone': tone,
           'content': content,
           'created_at': DateTime.now().millisecondsSinceEpoch,
         },

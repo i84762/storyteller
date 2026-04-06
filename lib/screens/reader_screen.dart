@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -219,6 +220,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // source PDF while still listening to the AI-processed audio.
           if (reader.hasPdf &&
               reader.listeningMode.isAiPowered &&
+              reader.listeningMode != ListeningMode.pictorial &&
               reader.wordSpans.isNotEmpty)
             _OriginalToggleBar(
               showOriginal: _showOriginal,
@@ -241,6 +243,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildTextView(ReaderProvider reader) {
+    if (reader.listeningMode == ListeningMode.pictorial) {
+      return _PictorialView(
+        key: ValueKey('pic_${reader.currentPage}'),
+        image: reader.currentPageImage,
+        isGenerating: reader.isGeneratingImage,
+        wordSpans: reader.wordSpans,
+        currentWordIndex: reader.currentWordIndex,
+        onWordTap: reader.jumpToWord,
+      );
+    }
+
     final isReading = reader.state == ReaderState.reading;
 
     // Only highlight words when the screen is showing the same text that
@@ -425,6 +438,202 @@ class _WordHighlightViewState extends State<_WordHighlightView> {
       controller: _scroll,
       padding: const EdgeInsets.all(20),
       child: RichText(text: TextSpan(children: spans)),
+    );
+  }
+}
+
+// ── Pictorial mode view ───────────────────────────────────────────────────────
+
+class _PictorialView extends StatelessWidget {
+  final Uint8List? image;
+  final bool isGenerating;
+  final List<WordSpan> wordSpans;
+  final int currentWordIndex;
+  final void Function(int) onWordTap;
+
+  const _PictorialView({
+    super.key,
+    required this.image,
+    required this.isGenerating,
+    required this.wordSpans,
+    required this.currentWordIndex,
+    required this.onWordTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── Background image / shimmer ─────────────────────────────────
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          child: image != null
+              ? Image.memory(
+                  image!,
+                  key: ValueKey(image.hashCode),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                )
+              : _PictorialShimmer(key: const ValueKey('shimmer')),
+        ),
+
+        // ── Bottom gradient overlay ────────────────────────────────────
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Colors.black87],
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+            child: wordSpans.isNotEmpty && currentWordIndex >= 0
+                ? _CurrentWordDisplay(
+                    wordSpans: wordSpans,
+                    currentWordIndex: currentWordIndex,
+                    onWordTap: onWordTap,
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+
+        // ── Generating badge ───────────────────────────────────────────
+        if (isGenerating)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Illustrating…',
+                    style: TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PictorialShimmer extends StatefulWidget {
+  const _PictorialShimmer({super.key});
+  @override
+  State<_PictorialShimmer> createState() => _PictorialShimmerState();
+}
+
+class _PictorialShimmerState extends State<_PictorialShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        color: Color.lerp(
+          cs.surfaceContainerHighest,
+          cs.primaryContainer,
+          _anim.value,
+        ),
+        child: Center(
+          child: Icon(Icons.auto_awesome,
+              size: 48,
+              color: cs.primary.withValues(alpha: 0.3)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows the current spoken word prominently at the bottom of the pictorial view.
+class _CurrentWordDisplay extends StatelessWidget {
+  final List<WordSpan> wordSpans;
+  final int currentWordIndex;
+  final void Function(int) onWordTap;
+
+  const _CurrentWordDisplay({
+    required this.wordSpans,
+    required this.currentWordIndex,
+    required this.onWordTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Show a small sliding window: 2 words before, current, 2 after
+    final start = (currentWordIndex - 2).clamp(0, wordSpans.length - 1);
+    final end = (currentWordIndex + 3).clamp(0, wordSpans.length);
+    final visible = wordSpans.sublist(start, end);
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 4,
+      runSpacing: 4,
+      children: visible.map((span) {
+        final idx = wordSpans.indexOf(span);
+        final isCurrent = idx == currentWordIndex;
+        return GestureDetector(
+          onTap: () => onWordTap(idx),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 150),
+            style: TextStyle(
+              color: isCurrent ? Colors.white : Colors.white60,
+              fontSize: isCurrent ? 22 : 16,
+              fontWeight:
+                  isCurrent ? FontWeight.bold : FontWeight.normal,
+              shadows: isCurrent
+                  ? [
+                      const Shadow(
+                          color: Colors.black, blurRadius: 8)
+                    ]
+                  : null,
+            ),
+            child: Text(span.text),
+          ),
+        );
+      }).toList(),
     );
   }
 }

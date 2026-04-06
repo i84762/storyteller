@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 import '../providers/reader_provider.dart';
 
 /// Shows a bottom sheet for picking a [ListeningMode].
@@ -12,7 +13,7 @@ class ListeningModePicker extends StatelessWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF16213E),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -78,13 +79,24 @@ class ListeningModePicker extends StatelessWidget {
             child: ListView(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: ListeningMode.values.map((mode) {
-                return _ModeCard(
-                  mode: mode,
-                  isSelected: reader.listeningMode == mode,
-                  onTap: () => _onSelect(context, mode, reader),
-                );
-              }).toList(),
+              children: [
+                // ── Tone section ─────────────────────────────────────────
+                _ToneSection(
+                  selectedTone: reader.tone,
+                  suggestedTone: ReadingToneX.defaultFor(reader.listeningMode),
+                  onToneSelected: (t) => reader.setTone(t),
+                ),
+                const SizedBox(height: 4),
+                const Divider(color: Colors.white12, height: 1),
+                const SizedBox(height: 4),
+                ...ListeningMode.values.map((mode) {
+                  return _ModeCard(
+                    mode: mode,
+                    isSelected: reader.listeningMode == mode,
+                    onTap: () => _onSelect(context, mode, reader),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -252,6 +264,114 @@ class _AiBadge extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+}
+
+class _ToneSection extends StatelessWidget {
+  final ReadingTone selectedTone;
+  final ReadingTone suggestedTone;
+  final ValueChanged<ReadingTone> onToneSelected;
+
+  const _ToneSection({
+    required this.selectedTone,
+    required this.suggestedTone,
+    required this.onToneSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.tune, size: 14, color: Colors.white54),
+              const SizedBox(width: 6),
+              const Text(
+                'Tone',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${selectedTone.emoji} ${selectedTone.displayName}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            itemCount: ReadingTone.values.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (_, i) {
+              final tone = ReadingTone.values[i];
+              final isSelected = tone == selectedTone;
+              final isSuggested = tone == suggestedTone;
+              return GestureDetector(
+                onTap: () => onToneSelected(tone),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.deepPurpleAccent.withValues(alpha: 0.25)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.deepPurpleAccent
+                          : isSuggested
+                              ? Colors.deepPurpleAccent.withValues(alpha: 0.4)
+                              : Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(tone.emoji, style: const TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Text(
+                        tone.displayName,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.deepPurpleAccent
+                              : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      if (isSuggested && !isSelected) ...[
+                        const SizedBox(width: 4),
+                        const Text('✨', style: TextStyle(fontSize: 9)),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

@@ -82,8 +82,6 @@ When controlling playback, acknowledge the command warmly.
 ''';
 
   // ── Listening-mode transformation prompts ─────────────────────────────────
-
-  /// Returns the system prompt for AI-powered listening modes.
   ///
   /// All prompts produce plain spoken prose — no markdown, bullets, or headers.
   /// When [targetLanguage] is provided the AI responds in that language; for
@@ -176,6 +174,10 @@ Then say "Now, here is a summary:" followed by a 2 to 3 sentence summary of the 
 Format for audio only — no bullet points, no numbering, no markdown symbols.
 Use natural spoken transitions like "First question:", "Second question:", "The answer is:", "Now, here is a summary:".$toneInstr$langInstr
 ''';
+
+      case ListeningMode.pictorial:
+        // Pictorial mode uses raw text for TTS — no AI text transformation.
+        return '';
     }
   }
 
@@ -183,5 +185,21 @@ Use natural spoken transitions like "First question:", "Second question:", "The 
     if (code == null) return '';
     final name = supportedLanguages[code] ?? code;
     return '\nRespond in $name.';
+  }
+
+  /// Returns a system prompt that asks the LLM to produce a short visual scene
+  /// description (≤ 60 words) from the page text — suitable as an image-
+  /// generation prompt.  The result is passed directly to DALL-E 3 / Imagen.
+  static String imageVisualPrompt(ListeningMode mode, ReadingTone tone) {
+    final toneHint = tone == ReadingTone.neutral
+        ? ''
+        : ' The visual style should feel ${tone.displayName.toLowerCase()}.';
+    return '''
+You are a visual scene director.
+Read the following page of text and write a single short image-generation prompt (maximum 60 words) that captures the most vivid and representative scene or concept from the page.
+The prompt should describe a scene, mood, or concept — not repeat the text verbatim.
+Focus on visually striking imagery.$toneHint
+Respond with ONLY the image prompt — no preamble, no labels, no quotes.
+''';
   }
 }

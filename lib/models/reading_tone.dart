@@ -74,6 +74,7 @@ extension ReadingToneX on ReadingTone {
       case ListeningMode.storyteller:  return ReadingTone.storytelling;
       case ListeningMode.focus:        return ReadingTone.conversational;
       case ListeningMode.quiz:         return ReadingTone.socratic;
+      case ListeningMode.pictorial:    return ReadingTone.neutral;
     }
   }
 

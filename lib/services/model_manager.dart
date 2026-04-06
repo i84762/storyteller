@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/ai_source.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 import '../models/subscription_tier.dart';
 import '../models/intent_result.dart';
 import '../utils/constants.dart';
 import '../utils/intent_parser.dart';
 import 'gemini_service.dart';
+import 'image_generation_service.dart';
 import 'openai_service.dart';
 import 'on_device_service.dart' show OnDeviceService, OnDeviceUnavailableException;
 import 'usage_tracker.dart';
@@ -92,6 +95,7 @@ class ModelManager {
     ListeningMode mode, {
     String? focusTopic,
     String? targetLanguage,
+    ReadingTone tone = ReadingTone.neutral,
     void Function(int done, int total)? onProgress,
   }) async {
     if (mode == ListeningMode.wordToWord && targetLanguage == null) {
@@ -102,6 +106,7 @@ class ModelManager {
       mode,
       focusTopic: focusTopic,
       targetLanguage: targetLanguage,
+      tone: tone,
     );
     if (systemPrompt.isEmpty) return pageText;
     return _generate(
@@ -111,6 +116,45 @@ class ModelManager {
       mode: mode,
       onProgress: onProgress,
     );
+  }
+
+  /// Generates a short visual scene description (image prompt) from page text.
+  Future<String?> generateImagePrompt(
+    String pageText,
+    ListeningMode mode,
+    ReadingTone tone,
+  ) async {
+    if (pageText.trim().isEmpty) return null;
+    try {
+      final systemPrompt = AppConstants.imageVisualPrompt(mode, tone);
+      return await _generate(
+        systemPrompt: systemPrompt,
+        userPrompt: pageText,
+        maxOutputTokens: 128,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Generates an image from [prompt] using the appropriate backend.
+  Future<Uint8List?> generateImage(String prompt) async {
+    try {
+      switch (_currentTier) {
+        case SubscriptionTier.byok:
+          if (_byokProvider == AIProvider.openAICloud) {
+            return ImageGenerationService.generateOpenAI(
+                _byokApiKey!, prompt);
+          }
+          return ImageGenerationService.generateGemini(
+              _byokApiKey ?? AppConstants.devGeminiApiKey, prompt);
+        default:
+          return ImageGenerationService.generateGemini(
+              AppConstants.devGeminiApiKey, prompt);
+      }
+    } catch (_) {
+      return null;
+    }
   }
 
   // ─── Core routing logic ───────────────────────────────────────────────────

@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/book_record.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 import '../services/library_service.dart';
+import '../services/page_cache_service.dart';
 import '../services/pdf_service.dart';
 import '../services/audio_handler.dart';
 import '../services/stt_service.dart';
@@ -42,15 +46,45 @@ class ReaderProvider extends ChangeNotifier {
   /// Maximum number of pages to look ahead when prefetching.
   static const int _prefetchLookahead = 2;
 
+  // ── Tone ──────────────────────────────────────────────────────────────────
+  ReadingTone _tone = ReadingTone.neutral;
+  ReadingTone get tone => _tone;
+
+  // ── Persistent AI cache ───────────────────────────────────────────────────
+  final PageCacheService _pageCache = PageCacheService();
+
+  // ── Pictorial mode image state ────────────────────────────────────────────
+  final Map<int, Uint8List?> _imageCache = {};
+  Uint8List? _currentPageImage;
+  bool _isGeneratingImage = false;
+  Uint8List? get currentPageImage => _currentPageImage;
+  bool get isGeneratingImage => _isGeneratingImage;
+
   ListeningMode get listeningMode => _listeningMode;
   String? get focusTopic => _focusTopic;
 
   void setListeningMode(ListeningMode mode, {String? focusTopic}) {
     _listeningMode = mode;
     _focusTopic = focusTopic;
+    _tone = ReadingToneX.defaultFor(mode);
     _transformedCache.clear();
-    _prefetchingPage = null; // stale prefetch no longer relevant
+    _prefetchingPage = null;
+    _imageCache.clear();
+    _currentPageImage = null;
     _clearWordState();
+    notifyListeners();
+  }
+
+  Future<void> setTone(ReadingTone tone) async {
+    if (_tone == tone) return;
+    _tone = tone;
+    _transformedCache.clear();
+    _prefetchingPage = null;
+    _imageCache.clear();
+    _currentPageImage = null;
+    _clearWordState();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('reading_tone', tone.name);
     notifyListeners();
   }
 
@@ -159,6 +193,7 @@ class ReaderProvider extends ChangeNotifier {
 
   void removeBook(String path) {
     _libraryService.remove(path);
+    _pageCache.deleteForBook(path);
     notifyListeners();
   }
 
@@ -179,6 +214,15 @@ class ReaderProvider extends ChangeNotifier {
     await _libraryService.init();
     await _audioHandler.init();
     await _sttService.init();
+    await _pageCache.init();
+    final prefs = await SharedPreferences.getInstance();
+    final toneName = prefs.getString('reading_tone');
+    if (toneName != null) {
+      _tone = ReadingTone.values.firstWhere(
+        (t) => t.name == toneName,
+        orElse: () => ReadingTone.neutral,
+      );
+    }
 
     _audioHandler.onCompleted = _onPageReadComplete;
     _audioHandler.onSkipNext = () => nextPage();
@@ -221,6 +265,8 @@ class ReaderProvider extends ChangeNotifier {
       await _pdfService.getPageAsync(0);
       _transformedCache.clear();
       _prefetchingPage = null;
+      _imageCache.clear();
+      _currentPageImage = null;
       _clearWordState();
       _state = ReaderState.idle;
       _saveProgress();
@@ -246,6 +292,8 @@ class ReaderProvider extends ChangeNotifier {
       await _pdfService.getPageAsync(_currentPage);
       _transformedCache.clear();
       _prefetchingPage = null;
+      _imageCache.clear();
+      _currentPageImage = null;
       _clearWordState();
       _state = ReaderState.idle;
       notifyListeners();
@@ -269,6 +317,9 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page is ready — start prefetching ahead in the background.
     _schedulePrefetch(_currentPage + 1);
+    if (_listeningMode == ListeningMode.pictorial) {
+      _triggerImageGeneration(_currentPage);
+    }
     await _audioHandler.speakText(
       text,
       title: _bookTitle,
@@ -393,6 +444,9 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
     // Current page ready — prefetch ahead.
     _schedulePrefetch(index + 1);
+    if (_listeningMode == ListeningMode.pictorial) {
+      _triggerImageGeneration(index);
+    }
     await _audioHandler.speakText(
       text,
       title: _bookTitle,
@@ -434,11 +488,12 @@ class ReaderProvider extends ChangeNotifier {
   /// Returns AI-transformed text for [index]; hits cache first.
   /// Falls back to raw text if AI is unavailable; sets [_aiError] on failure.
   Future<String> _getTextForMode(int index, String rawText) async {
+    // Pictorial mode: TTS uses raw text; images are generated separately.
+    if (_listeningMode == ListeningMode.pictorial) return rawText;
+
     final isWordToWordNoTranslation =
         _listeningMode == ListeningMode.wordToWord && _targetLanguage == null;
-    if (isWordToWordNoTranslation || rawText.trim().isEmpty) {
-      return rawText;
-    }
+    if (isWordToWordNoTranslation || rawText.trim().isEmpty) return rawText;
 
     if (modelProvider == null) {
       _aiError = 'AI not initialised. Restart the app and try again.';
@@ -446,8 +501,19 @@ class ReaderProvider extends ChangeNotifier {
       return rawText;
     }
 
-    if (_transformedCache.containsKey(index)) {
-      return _transformedCache[index]!;
+    if (_transformedCache.containsKey(index)) return _transformedCache[index]!;
+
+    // Check persistent disk cache before hitting the AI API.
+    final bookPath = _pdfPath;
+    if (bookPath != null) {
+      final cached = await _pageCache.get(
+        bookPath, index, _listeningMode.name, _targetLanguage,
+        modelProvider!.currentTierName, _tone.name,
+      );
+      if (cached != null) {
+        _transformedCache[index] = cached;
+        return cached;
+      }
     }
 
     _isTranslating = true;
@@ -461,6 +527,7 @@ class ReaderProvider extends ChangeNotifier {
         _listeningMode,
         focusTopic: _focusTopic,
         targetLanguage: _targetLanguage,
+        tone: _tone,
         onProgress: (done, total) {
           _processingChunk = done;
           _totalChunks = total;
@@ -475,6 +542,13 @@ class ReaderProvider extends ChangeNotifier {
             : 'AI transformation failed. Reading original text.';
       }
       _transformedCache[index] = result;
+      // Persist so the same page/mode/tone/tier never hits the API again.
+      if (bookPath != null && result != rawText) {
+        _pageCache.put(
+          bookPath, index, _listeningMode.name, _targetLanguage,
+          modelProvider!.currentTierName, _tone.name, result,
+        ).ignore();
+      }
       return result;
     } catch (e) {
       _aiError = 'AI unavailable. Check your AI source in Settings.';
@@ -499,7 +573,8 @@ class ReaderProvider extends ChangeNotifier {
 
   /// Whether the current mode requires AI processing.
   bool get _needsAiProcessing =>
-      !(_listeningMode == ListeningMode.wordToWord && _targetLanguage == null);
+      !(_listeningMode == ListeningMode.wordToWord && _targetLanguage == null) &&
+      _listeningMode != ListeningMode.pictorial;
 
   /// Schedules a silent background prefetch for [page] if it isn't cached yet
   /// and is within the lookahead window. Safe to call multiple times.
@@ -525,32 +600,99 @@ class ReaderProvider extends ChangeNotifier {
     try {
       final rawText = await _pdfService.getPageAsync(page);
       if (rawText.trim().isEmpty) return;
-
-      // Abort if settings changed while we were fetching the PDF page.
       if (_prefetchingPage != page) return;
       if (_transformedCache.containsKey(page)) return;
+
+      // Check persistent cache first.
+      final bookPath = _pdfPath;
+      if (bookPath != null && modelProvider != null) {
+        final cached = await _pageCache.get(
+          bookPath, page, _listeningMode.name, _targetLanguage,
+          modelProvider!.currentTierName, _tone.name,
+        );
+        if (cached != null) {
+          if (_prefetchingPage == page) _transformedCache[page] = cached;
+          return;
+        }
+      }
+
+      if (_prefetchingPage != page) return;
 
       final transformed = await modelProvider!.transformPageForMode(
         rawText,
         _listeningMode,
         focusTopic: _focusTopic,
         targetLanguage: _targetLanguage,
-        // No onProgress — this is silent background work.
+        tone: _tone,
       );
 
-      // Discard if settings changed mid-flight (cache was cleared).
       if (_prefetchingPage != page) return;
 
       if (transformed != null && transformed.isNotEmpty) {
         _transformedCache[page] = transformed;
+        if (bookPath != null) {
+          _pageCache.put(
+            bookPath, page, _listeningMode.name, _targetLanguage,
+            modelProvider!.currentTierName, _tone.name, transformed,
+          ).ignore();
+        }
       }
     } catch (_) {
-      // Silent failure — the page will be processed on-demand when reached.
+      // Silent — processed on-demand when page is reached.
     } finally {
       if (_prefetchingPage == page) {
         _prefetchingPage = null;
-        // Chain: immediately try the next page in the lookahead window.
         _schedulePrefetch(page + 1);
+      }
+    }
+  }
+
+  /// Fire-and-forget: generates and caches a page illustration for pictorial mode.
+  Future<void> _triggerImageGeneration(int page) async {
+    if (modelProvider == null) return;
+
+    // Serve from in-memory cache immediately if available.
+    if (_imageCache.containsKey(page)) {
+      if (page == _currentPage) {
+        _currentPageImage = _imageCache[page];
+        notifyListeners();
+      }
+      return;
+    }
+
+    if (page == _currentPage) {
+      _isGeneratingImage = true;
+      _currentPageImage = null;
+      notifyListeners();
+    }
+
+    try {
+      final rawText = await _pdfService.getPageAsync(page);
+      if (rawText.trim().isEmpty) {
+        _imageCache[page] = null;
+        return;
+      }
+
+      // Step 1: generate a visual description prompt using text AI.
+      final imagePrompt = await modelProvider!.generateImagePrompt(
+          rawText, _listeningMode, _tone);
+      if (imagePrompt == null || imagePrompt.isEmpty) {
+        _imageCache[page] = null;
+        return;
+      }
+
+      // Step 2: call image generation API.
+      final imageBytes = await modelProvider!.generateImage(imagePrompt);
+      _imageCache[page] = imageBytes;
+      if (page == _currentPage) {
+        _currentPageImage = imageBytes;
+      }
+    } catch (_) {
+      _imageCache[page] = null;
+    } finally {
+      if (page == _currentPage) {
+        _isGeneratingImage = false;
+        notifyListeners();
       }
     }
   }

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
 import '../services/on_device_service.dart' show OnDeviceUnavailableException;
 import '../models/ai_source.dart';
 import '../models/listening_mode.dart';
+import '../models/reading_tone.dart';
 import '../models/subscription_tier.dart';
 import '../models/token_usage.dart';
 import '../services/model_manager.dart';
@@ -19,6 +21,7 @@ class ModelProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   SubscriptionTier get currentTier => modelManager.currentTier;
+  String get currentTierName => modelManager.currentTier.name;
 
   Future<void> init() async {
     await modelManager.init();
@@ -50,6 +53,7 @@ class ModelProvider extends ChangeNotifier {
     ListeningMode mode, {
     String? focusTopic,
     String? targetLanguage,
+    ReadingTone tone = ReadingTone.neutral,
     void Function(int done, int total)? onProgress,
   }) async {
     try {
@@ -58,6 +62,7 @@ class ModelProvider extends ChangeNotifier {
         mode,
         focusTopic: focusTopic,
         targetLanguage: targetLanguage,
+        tone: tone,
         onProgress: onProgress,
       );
     } on OnDeviceUnavailableException catch (e) {
@@ -68,6 +73,15 @@ class ModelProvider extends ChangeNotifier {
       return null; // caller falls back to raw text
     }
   }
+
+  Future<String?> generateImagePrompt(
+    String pageText,
+    ListeningMode mode,
+    ReadingTone tone,
+  ) => modelManager.generateImagePrompt(pageText, mode, tone);
+
+  Future<Uint8List?> generateImage(String prompt) =>
+      modelManager.generateImage(prompt);
 
   Future<String?> processUserInput({
     required String spokenInput,
