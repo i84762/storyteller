@@ -33,7 +33,9 @@ class ListeningModePicker extends StatelessWidget {
       minChildSize: 0.5,
       maxChildSize: 0.92,
       expand: false,
-      builder: (ctx, scrollController) => Column(
+      builder: (ctx, scrollController) {
+        final cs = Theme.of(ctx).colorScheme;
+        return Column(
         children: [
           // Handle bar
           Padding(
@@ -42,7 +44,7 @@ class ListeningModePicker extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: cs.onSurface.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -54,13 +56,13 @@ class ListeningModePicker extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.headphones, color: Colors.white70),
+                Icon(Icons.headphones, color: cs.onSurface.withValues(alpha: 0.6)),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Listening Mode',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: cs.onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -72,7 +74,7 @@ class ListeningModePicker extends StatelessWidget {
             ),
           ),
 
-          const Divider(color: Colors.white12, height: 1),
+          Divider(color: cs.onSurface.withValues(alpha: 0.1), height: 1),
 
           // Mode list
           Expanded(
@@ -87,7 +89,7 @@ class ListeningModePicker extends StatelessWidget {
                   onToneSelected: (t) => reader.setTone(t),
                 ),
                 const SizedBox(height: 4),
-                const Divider(color: Colors.white12, height: 1),
+                Divider(color: cs.onSurface.withValues(alpha: 0.1), height: 1),
                 const SizedBox(height: 4),
                 ...ListeningMode.values.map((mode) {
                   return _ModeCard(
@@ -100,7 +102,8 @@ class ListeningModePicker extends StatelessWidget {
             ),
           ),
         ],
-      ),
+        );
+      },
     );
   }
 
@@ -131,25 +134,26 @@ class ListeningModePicker extends StatelessWidget {
     final controller = TextEditingController(text: current ?? '');
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text('What would you like to focus on?',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+        backgroundColor: cs.surface,
+        title: Text('What would you like to focus on?',
+            style: TextStyle(color: cs.onSurface, fontSize: 16)),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: cs.onSurface),
           decoration: InputDecoration(
             hintText: 'e.g. The role of Parliament',
-            hintStyle: const TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: cs.onSurface.withValues(alpha: 0.38)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.white24),
+              borderSide: BorderSide(color: cs.onSurface.withValues(alpha: 0.2)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide:
-                  const BorderSide(color: Colors.deepPurpleAccent),
+              borderSide: BorderSide(color: cs.primary),
             ),
           ),
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
@@ -157,8 +161,8 @@ class ListeningModePicker extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.white54)),
+            child: Text('Cancel',
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.54))),
           ),
           FilledButton(
             onPressed: () =>
@@ -166,7 +170,8 @@ class ListeningModePicker extends StatelessWidget {
             child: const Text('Set Focus'),
           ),
         ],
-      ),
+        );
+      },
     );
   }
 }
@@ -187,6 +192,7 @@ class _ModeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = mode.color;
+    final cs = Theme.of(context).colorScheme;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -194,12 +200,12 @@ class _ModeCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? color : Colors.white12,
+          color: isSelected ? color : cs.onSurface.withValues(alpha: 0.1),
           width: isSelected ? 2 : 1,
         ),
         color: isSelected
-            ? color.withValues(alpha: 0.15)
-            : Colors.white.withValues(alpha: 0.04),
+            ? color.withValues(alpha: 0.12)
+            : cs.onSurface.withValues(alpha: 0.03),
       ),
       child: ListTile(
         onTap: onTap,
@@ -207,7 +213,7 @@ class _ModeCard extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: CircleAvatar(
           radius: 22,
-          backgroundColor: color.withValues(alpha: 0.2),
+          backgroundColor: color.withValues(alpha: 0.15),
           child: Icon(mode.icon, color: color, size: 22),
         ),
         title: Row(
@@ -215,7 +221,7 @@ class _ModeCard extends StatelessWidget {
             Text(
               mode.displayName,
               style: TextStyle(
-                color: Colors.white,
+                color: cs.onSurface,
                 fontWeight:
                     isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 15,
@@ -231,7 +237,8 @@ class _ModeCard extends StatelessWidget {
           padding: const EdgeInsets.only(top: 3),
           child: Text(
             mode.description,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.54), fontSize: 12),
           ),
         ),
         trailing: isSelected
@@ -281,6 +288,7 @@ class _ToneSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -288,12 +296,12 @@ class _ToneSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
           child: Row(
             children: [
-              const Icon(Icons.tune, size: 14, color: Colors.white54),
+              Icon(Icons.tune, size: 14, color: cs.onSurface.withValues(alpha: 0.5)),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Tone',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: cs.onSurface.withValues(alpha: 0.7),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
@@ -303,12 +311,14 @@ class _ToneSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.07),
+                  color: cs.onSurface.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '${selectedTone.emoji} ${selectedTone.displayName}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                  style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      fontSize: 10),
                 ),
               ),
             ],
@@ -329,31 +339,33 @@ class _ToneSection extends StatelessWidget {
                 onTap: () => onToneSelected(tone),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.deepPurpleAccent.withValues(alpha: 0.25)
-                        : Colors.white.withValues(alpha: 0.05),
+                        ? cs.primary.withValues(alpha: 0.15)
+                        : cs.onSurface.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: isSelected
-                          ? Colors.deepPurpleAccent
+                          ? cs.primary
                           : isSuggested
-                              ? Colors.deepPurpleAccent.withValues(alpha: 0.4)
-                              : Colors.white.withValues(alpha: 0.12),
+                              ? cs.primary.withValues(alpha: 0.4)
+                              : cs.onSurface.withValues(alpha: 0.12),
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(tone.emoji, style: const TextStyle(fontSize: 12)),
+                      Text(tone.emoji,
+                          style: const TextStyle(fontSize: 12)),
                       const SizedBox(width: 4),
                       Text(
                         tone.displayName,
                         style: TextStyle(
                           color: isSelected
-                              ? Colors.deepPurpleAccent
-                              : Colors.white70,
+                              ? cs.primary
+                              : cs.onSurface.withValues(alpha: 0.7),
                           fontSize: 11,
                           fontWeight: isSelected
                               ? FontWeight.w700
@@ -362,7 +374,8 @@ class _ToneSection extends StatelessWidget {
                       ),
                       if (isSuggested && !isSelected) ...[
                         const SizedBox(width: 4),
-                        const Text('✨', style: TextStyle(fontSize: 9)),
+                        const Text('✨',
+                            style: TextStyle(fontSize: 9)),
                       ],
                     ],
                   ),
